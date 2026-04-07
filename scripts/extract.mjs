@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * iPhone Sysdiagnose Data Extractor
+ * iOS Sysdiagnose Data Extractor
  * Extracts structured data from sysdiagnose archives for reporting.
  * Usage: node extract.mjs <sysdiagnose_dir> [-o output.json] [--max-points 200]
  */

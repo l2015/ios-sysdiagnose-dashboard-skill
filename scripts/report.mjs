@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * iPhone Sysdiagnose Report Generator
+ * iOS Sysdiagnose Report Generator
  * Generates an Apple HIG-style dark theme HTML report from extracted data.
  * Usage: node report.mjs data.json [-o report.html]
  */

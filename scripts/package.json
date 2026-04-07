@@ -1,5 +1,5 @@
 {
-  "name": "iphone-sysdiagnose-scripts",
+  "name": "ios-sysdiagnose-dashboard-skill-scripts",
   "private": true,
   "type": "module",
   "dependencies": {
