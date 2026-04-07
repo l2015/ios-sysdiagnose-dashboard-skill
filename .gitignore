@@ -1,16 +1,7 @@
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-dist/
-build/
-.venv/
-venv/
-*.html
+node_modules/
 *.tar.gz
 *.PLSQL
-cases/
-
-# User data (not project metadata)
+*.ips
 data.json
-sd_data*.json
+report.html
+.DS_Store

@@ -1,1 +1,0 @@
-# iphone-sysdiagnose scripts package

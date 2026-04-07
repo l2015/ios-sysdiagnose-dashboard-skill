@@ -1,0 +1,15 @@
+{
+  "name": "iphone-sysdiagnose",
+  "version": "0.2.0",
+  "description": "Analyze iPhone sysdiagnose archives — battery, NAND, apps, crashes → HTML report",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "extract": "node scripts/extract.mjs",
+    "report": "node scripts/report.mjs",
+    "test": "node --test tests/"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

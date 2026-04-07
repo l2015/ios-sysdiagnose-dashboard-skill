@@ -1,103 +1,128 @@
 # iPhone Sysdiagnose Analyzer
 
-> OpenClaw Skill · 版本 0.1.4
+Analyze iPhone sysdiagnose diagnostic archives — battery health, NAND flash lifespan, app usage, crash logs — and generate a beautiful HTML report.
 
-分析 iPhone sysdiagnose 诊断归档文件，提取电池健康、闪存状态、应用使用、崩溃日志等数据，生成自包含的 HTML 报告。
+Also works as an [OpenClaw](https://github.com/openclaw/openclaw) skill for automated analysis.
 
-## 功能
+## Features
 
-- **电池**: 健康百分比、充电循环、容量衰减、温度趋势
-- **NAND 闪存**: 剩余寿命、读写量（主机/闪存双视角）、PE 擦写次数、坏块、写入放大
-- **应用排行**: 存储写入量、亮屏时间、内存峰值、网络流量
-- **崩溃分析**: Jetsam 内存回收、Safari 崩溃、磁盘写入超限、CPU 资源事件
-- **应用退出**: Jetsam 内存回收排行（哪个 App 被系统杀得最多）
-- **设备信息**: 型号识别、SoC、磁盘容量、基带版本
+| Category | Data |
+|----------|------|
+| **Battery** | Health %, cycle count, capacity degradation, temperature, voltage, trend chart |
+| **NAND Flash** | Remaining lifespan, host/NAND read/write, PE erase cycles, bad blocks, write amplification |
+| **App Ranking** | NAND writes, screen time, energy, CPU, peak memory, network traffic |
+| **Crashes** | Jetsam memory kills, Safari crashes, disk write throttling, CPU resource events |
+| **App Exits** | Jetsam kill ranking (which app gets killed most) |
+| **Device** | Model, SoC, storage, baseband |
 
-## 使用方式
-
-### 作为 OpenClaw Skill
-
-安装后，用户只需上传 sysdiagnose 文件，AI 自动完成：
-
-1. 解压归档
-2. 提取数据（PowerLog + ASP SMART + 崩溃日志）
-3. 生成 HTML 报告
-
-无需用户手动操作任何命令行。
-
-### 手动使用
+## Quick Start
 
 ```bash
-# 提取数据（SAF 可选，不装也能提取崩溃日志和 PowerLog 数据）
-python3 scripts/extract.py /path/to/sysdiagnose_dir -o data.json
+# Clone and install
+git clone https://github.com/<you>/iphone-sysdiagnose.git
+cd iphone-sysdiagnose/scripts
+npm install
 
-# 生成报告
-python3 scripts/report.py data.json -o report.html
+# Extract your sysdiagnose archive
+WORK=$(mktemp -d)
+tar xzf your-sysdiagnose.tar.gz -C "$WORK"
+BASE=$(find "$WORK" -maxdepth 1 -type d -name "sysdiagnose_*" | head -1)
+
+# Run analysis
+node extract.mjs "$BASE" -o data.json
+node report.mjs data.json -o report.html
+
+# Cleanup
+rm -rf "$WORK"
 ```
 
-## 环境要求
+Open `report.html` in your browser. Done.
 
-- Python 3.10+
-- `strings` 命令（macOS / Linux 自带）
-- [SAF](https://github.com/EC-DIGIT-CSIRC/sysdiagnose)（可选，提供额外解析能力）
+## Requirements
 
-## 项目结构
+- **Node.js** 18+
+- **`strings`** command (pre-installed on macOS and Linux)
+
+No Python, no pip, no native compilation. Just Node.
+
+## Output
+
+Apple HIG-style dark theme HTML report with:
+
+- 5 KPI cards (battery health, cycles, NAND remaining, crashes, app exits)
+- Battery detail card with capacity breakdown
+- NAND flash health card with PE cycles, WAF, bad blocks
+- Interactive battery trend chart (hover/tap for values)
+- Crash analysis by category
+- Jetsam memory kill ranking
+- App NAND write ranking, screen time, peak memory, network usage
+- Responsive layout (desktop, tablet, mobile)
+- Chinese/English auto-detection based on installed apps
+
+## OpenClaw Skill
+
+This project doubles as an [OpenClaw](https://docs.openclaw.ai) skill. Install it and the AI will automatically:
+
+1. Extract the uploaded sysdiagnose archive
+2. Run data extraction
+3. Generate and return the HTML report
+
+No manual steps needed.
+
+### Install as Skill
+
+```bash
+# Clone into your skills directory
+git clone https://github.com/<you>/iphone-sysdiagnose.git ~/.openclaw/skills/iphone-sysdiagnose
+
+# Install dependencies
+cd ~/.openclaw/skills/iphone-sysdiagnose/scripts && npm install
+```
+
+Then just upload a `.tar.gz` sysdiagnose file in your OpenClaw chat.
+
+## Project Structure
 
 ```
 iphone-sysdiagnose/
-├── SKILL.md                 # OpenClaw 技能定义
-├── _meta.json               # ClawHub 元数据
-├── pyproject.toml           # Python 打包配置
-├── LICENSE                  # MIT
+├── SKILL.md                # OpenClaw skill definition
+├── _meta.json              # ClawHub metadata
 ├── scripts/
-│   ├── __init__.py
-│   ├── extract.py           # 数据提取
-│   └── report.py            # HTML 报告生成
-├── references/
-│   └── features.md          # 完整可分析功能清单
-└── tests/
-    └── test_extract.py      # 基础测试
+│   ├── package.json        # better-sqlite3 dependency
+│   ├── extract.mjs         # Data extraction from PowerLog + ASP SMART + crash logs
+│   └── report.mjs          # HTML report generator
+└── references/
+    └── features.md         # Full PowerLog table reference (60+ tables)
 ```
 
-## 更新日志
+## How It Works
 
-### v0.1.4
-- 崩溃分析：直接解析 `.ips` 文件，不再依赖 SAF
-- 新增 Jetsam 内存回收排行（PowerLog 应用退出原因表）
-- 术语说明全部重写，通俗化（WAF 用擦黑笔字类比、PE 解释剩余次数）
-- 修复 `short_name` 前缀匹配导致 PassbookUIService 显示为 Safari
+The sysdiagnose archive contains several data sources:
 
-### v0.1.3
-- 报告头部增加日期含义标注（日志记录 vs 报告生成 vs 分析器版本）
-- 电池详情补充容量损耗和标称容量，对齐闪存卡片行数
-- 运行时间改为显示"累计通电/开机次数"，明确不是连续不关机
-- CSS hover 提示改为 JS 弹窗，支持移动端 tap
+| Source | Location | What |
+|--------|----------|------|
+| **PowerLog** | `logs/powerlogs/*.PLSQL` | SQLite database with battery, app, system metrics |
+| **ASP SMART** | `ASPSnapshots/asptool_snapshot.log` | NAND flash health data |
+| **Crash logs** | `crashes_and_spins/*.ips` | Jetsam, Safari, disk write, CPU crashes |
 
-### v0.1.2
-- 修复时间戳类型错误（Unix 不是 CFAbsoluteTime）
-- 闪存改为显示剩余健康百分比
-- 增加闪存实际读写量（区别于主机读写）
-- 移除屏幕亮度图表
-- 响应式布局（768px / 480px 断点）
+`extract.mjs` reads these sources and outputs a structured JSON file. `report.mjs` turns that JSON into a self-contained HTML file (no external dependencies, works offline).
 
-### v0.1.1
-- 报告完全重写，Apple HIG 深色主题
-- 中文自动检测（根据 App bundle ID）
-- App 名称映射（淘宝、抖音、微信等）
-- 电量/亮度曲线增加时间轴和 hover 交互
-- 内存单位修正（bytes 而非 KB）
+## Development
 
-### v0.1.0
-- 初始版本：18 个数据提取类别
-- 基础 HTML 报告
-- CLI 支持
+```bash
+cd scripts
+npm install           # Install dependencies
+node extract.mjs /path/to/sysdiagnose -o test.json   # Test extraction
+node report.mjs test.json -o test.html               # Test report
+```
 
-## 已知限制
+## Known Limitations
 
-- NAND 供应商/型号在用户级 sysdiagnose 中不可见
-- PowerLog 表结构因 iOS 版本不同可能有差异
-- 累计数据（通电时间、Jetsam 次数等）自上次"抹掉所有内容"起算
+- NAND vendor/model not visible in customer sysdiagnose (Apple internal only)
+- PowerLog table schema varies across iOS versions
+- Cumulative stats (uptime, Jetsam kills) are since last "Erase All Content and Settings"
+- Requires the `strings` system command for ASP SMART parsing
 
-## 许可证
+## License
 
 MIT
