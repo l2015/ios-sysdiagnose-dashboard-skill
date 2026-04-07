@@ -5,27 +5,17 @@ Apple HIG-inspired design with i18n, interactive charts, and correct data displa
 import argparse
 import json
 import sys
-from datetime import datetime, timezone, timedelta
-
-# Apple CFAbsoluteTime epoch: 2001-01-01 00:00:00 UTC
-CF_EPOCH = datetime(2001, 1, 1, tzinfo=timezone.utc)
+from datetime import datetime, timezone
 
 
-def cf_to_datetime(cf_ts: float) -> datetime:
-    """Convert Apple CFAbsoluteTime to datetime."""
-    return CF_EPOCH + timedelta(seconds=cf_ts)
+def fmt_datetime(ts: float) -> str:
+    """Format Unix timestamp as readable local time string."""
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%m/%d %H:%M")
 
 
-def fmt_datetime(cf_ts: float) -> str:
-    """Format CFAbsoluteTime as readable local time string."""
-    dt = cf_to_datetime(cf_ts)
-    return dt.strftime("%m/%d %H:%M")
-
-
-def fmt_datetime_full(cf_ts: float) -> str:
-    """Format CFAbsoluteTime as full readable string."""
-    dt = cf_to_datetime(cf_ts)
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
+def fmt_datetime_full(ts: float) -> str:
+    """Format Unix timestamp as full readable string."""
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def fmt_bytes(b: int | float | None) -> str:
@@ -78,21 +68,13 @@ APP_NAMES = {
     "com.apple.mobilecal": "日历",
     "com.apple.reminders": "提醒事项",
     "com.apple.mobilenotes": "备忘录",
-    "com.apple.Pages": "Pages",
-    "com.apple.Numbers": "Numbers",
-    "com.apple.Keynote": "Keynote",
     "com.apple.AppStore": "App Store",
     "com.apple.Preferences": "设置",
     "com.apple.camera": "相机",
-    "com.apple.DocumentsApp": "文件",
     "com.apple.mobiletimer": "时钟",
     "com.apple.Health": "健康",
     "com.apple.Fitness": "健身",
-    "com.apple.news": "新闻",
-    "com.apple Stocks": "股市",
-    "com.apple.translate": "翻译",
     "com.burbn.instagram": "Instagram",
-    "com.google.GoogleMobile": "Google",
     "com.google.chrome.ios": "Chrome",
     "com.spotify.client": "Spotify",
     "com.netease.mail": "网易邮箱",
@@ -102,9 +84,7 @@ APP_NAMES = {
     "com.meituan.takeoutnew": "美团",
     "com.sina.weibo": "微博",
     "com.zhihu.ios": "知乎",
-    "com.duowan.bilibili": "B站",
     "tv.danmaku.bili": "B站",
-    "com.apple.springboard": "SpringBoard",
     "searchd": "搜索",
     "healthd": "健康守护",
     "thermalmonitord": "温度监控",
@@ -122,17 +102,13 @@ def short_name(bundle_id: str) -> str:
         return "未知"
     if bundle_id in APP_NAMES:
         return APP_NAMES[bundle_id]
-    key_parts_map = {}
-    for key in APP_NAMES:
-        parts = key.split(".")
-        if len(parts) >= 2:
-            key_parts_map[(parts[0], parts[1])] = APP_NAMES[key]
-    bid_parts = bundle_id.split(".")
-    if len(bid_parts) >= 2:
-        match = key_parts_map.get((bid_parts[0], bid_parts[1]))
-        if match:
-            return match
-    return bid_parts[-1][:12] if bid_parts else bundle_id
+    parts = bundle_id.split(".")
+    if len(parts) >= 2:
+        for key, name in APP_NAMES.items():
+            kp = key.split(".")
+            if len(kp) >= 2 and kp[0] == parts[0] and kp[1] == parts[1]:
+                return name
+    return parts[-1][:12] if parts else bundle_id
 
 
 def detect_language(data: dict) -> str:
@@ -164,14 +140,9 @@ def health_color(pct: float | None) -> str:
     return "#ff3b30"
 
 
-def nand_color(pct: float | None) -> str:
-    if pct is None:
-        return "#636366"
-    if pct <= 30:
-        return "#34c759"
-    if pct <= 60:
-        return "#ff9f0a"
-    return "#ff3b30"
+def tip(text: str) -> str:
+    """Generate a tooltip info icon."""
+    return f'<span class="tip" data-tip="{text}">ⓘ</span>'
 
 
 def interactive_chart_svg(points: list[dict], value_key: str,
@@ -256,45 +227,60 @@ def interactive_chart_svg(points: list[dict], value_key: str,
 
 
 CSS = """\
-:root{--bg:#000;--card:#1c1c1e;--border:#2c2c2e;--green:#34c759;--yellow:#ff9f0a;--red:#ff3b30;--orange:#ff6723;--blue:#0a84ff;--cyan:#64d2ff;--purple:#bf5af2;--text:#f5f5f7;--sec:#98989d;--ter:#636366}
+:root{--bg:#000;--card:#1c1c1e;--border:#2c2c2e;--green:#34c759;--yellow:#ff9f0a;--red:#ff3b30;--orange:#ff6723;--blue:#0a84ff;--text:#f5f5f7;--sec:#98989d;--ter:#636366}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.47;-webkit-font-smoothing:antialiased}
-.hero{padding:56px 40px 36px;text-align:center;background:linear-gradient(180deg,#0a0a1a 0%,var(--bg) 100%)}
-.hero h1{font-size:2.4em;font-weight:700;letter-spacing:-.02em}
-.hero .sub{color:var(--sec);font-size:.88em;margin-top:8px}
-.device-strip{display:flex;justify-content:center;gap:28px;margin-top:20px;flex-wrap:wrap}
+.hero{padding:48px 24px 32px;text-align:center;background:linear-gradient(180deg,#0a0a1a 0%,var(--bg) 100%)}
+.hero h1{font-size:2.2em;font-weight:700;letter-spacing:-.02em}
+.hero .sub{color:var(--sec);font-size:.85em;margin-top:6px}
+.device-strip{display:flex;justify-content:center;gap:24px;margin-top:18px;flex-wrap:wrap}
 .device-strip .item{text-align:center}
-.device-strip .val{font-size:1.05em;font-weight:600}
-.device-strip .lbl{font-size:.68em;color:var(--sec);text-transform:uppercase;letter-spacing:.7px;margin-top:2px}
-.wrap{max-width:1080px;margin:0 auto;padding:0 20px 60px}
-.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
-.kpi{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center}
-.kpi .val{font-size:1.9em;font-weight:700;letter-spacing:-.02em;line-height:1}
-.kpi .lbl{font-size:.7em;color:var(--sec);text-transform:uppercase;letter-spacing:.6px;margin-top:4px}
+.device-strip .val{font-size:1em;font-weight:600}
+.device-strip .lbl{font-size:.65em;color:var(--sec);text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px 48px}
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center}
+.kpi .val{font-size:1.8em;font-weight:700;letter-spacing:-.02em;line-height:1}
+.kpi .lbl{font-size:.65em;color:var(--sec);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
 .card-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.card-grid.single{grid-template-columns:1fr}
-.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;overflow:hidden}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;overflow:hidden}
 .card.full{grid-column:1/-1}
 .card-title{font-size:.7em;text-transform:uppercase;letter-spacing:.7px;color:var(--sec);margin-bottom:10px;font-weight:600}
 .stat-big{font-size:2em;font-weight:700;letter-spacing:-.02em;line-height:1}
-.stat-sub{font-size:.8em;color:var(--sec);margin-top:5px}
-.stat-row{display:flex;justify-content:space-between;padding:5px 0;font-size:.83em;border-bottom:1px solid rgba(255,255,255,.03)}
+.stat-sub{font-size:.78em;color:var(--sec);margin-top:5px}
+.stat-row{display:flex;justify-content:space-between;padding:5px 0;font-size:.82em;border-bottom:1px solid rgba(255,255,255,.03)}
 .stat-row:last-child{border-bottom:none}
 .stat-row .k{color:var(--sec)}
 .stat-row .v{font-weight:600}
 .bar{height:5px;background:rgba(255,255,255,.05);border-radius:3px;margin:8px 0;overflow:hidden}
 .bar>div{height:100%;border-radius:3px}
 table{width:100%;border-collapse:collapse;font-size:.82em}
-th{text-align:left;font-size:.68em;color:var(--ter);text-transform:uppercase;letter-spacing:.5px;padding:5px 6px;border-bottom:1px solid var(--border);font-weight:600}
+th{text-align:left;font-size:.65em;color:var(--ter);text-transform:uppercase;letter-spacing:.5px;padding:5px 6px;border-bottom:1px solid var(--border);font-weight:600}
 td{padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.02)}
 tr:last-child td{border-bottom:none}
 .chart-svg{cursor:crosshair}
 .chart-svg .axis-label{font-size:10px;fill:#636366;font-family:-apple-system,sans-serif}
 .chart-svg .grid-line{stroke:#2c2c2e;stroke-width:.5}
 .chart-svg .hover-point{cursor:pointer}
-.chart-empty{height:120px;display:flex;align-items:center;justify-content:center;color:var(--ter);font-size:.85em}
-.footer{text-align:center;padding:36px 0;color:var(--ter);font-size:.73em;border-top:1px solid var(--border);margin-top:28px}
-@media(max-width:768px){.card-grid{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}.device-strip{gap:14px}.hero{padding:36px 16px 24px}.hero h1{font-size:1.7em}}
+.chart-empty{height:100px;display:flex;align-items:center;justify-content:center;color:var(--ter);font-size:.85em}
+.tip{cursor:help;color:var(--ter);font-size:.8em;margin-left:4px;position:relative}
+.tip:hover::after{content:attr(data-tip);position:absolute;bottom:120%;left:50%;transform:translateX(-50%);background:#2c2c2e;color:var(--text);padding:6px 10px;border-radius:8px;font-size:.75em;white-space:nowrap;z-index:10;border:1px solid #48484a;line-height:1.4;pointer-events:none}
+.footer{text-align:center;padding:32px 0;color:var(--ter);font-size:.72em;border-top:1px solid var(--border);margin-top:24px}
+@media(max-width:768px){
+.card-grid{grid-template-columns:1fr}
+.kpi-row{grid-template-columns:repeat(3,1fr)}
+.device-strip{gap:12px}
+.hero{padding:32px 16px 20px}
+.hero h1{font-size:1.6em}
+.kpi .val{font-size:1.4em}
+.stat-big{font-size:1.6em}
+table{font-size:.78em}
+}
+@media(max-width:480px){
+.kpi-row{grid-template-columns:repeat(2,1fr)}
+.device-strip{gap:8px}
+.device-strip .val{font-size:.9em}
+}
 """
 
 CHART_JS = """
@@ -310,7 +296,17 @@ tt.setAttribute('visibility','visible');tl.setAttribute('x1',cx);tl.setAttribute
 var bx=cx-65;if(bx<5)bx=5;if(bx>sw-140)bx=sw-140;
 tb.setAttribute('x',bx);tb.setAttribute('y',cy-46);tv.setAttribute('x',bx+65);tv.setAttribute('y',cy-27);tv.textContent=v+u;
 tt2.setAttribute('x',bx+65);tt2.setAttribute('y',cy-14);tt2.textContent=t}else{tt.setAttribute('visibility','hidden')}});
-svg.addEventListener('mouseleave',function(){tt.setAttribute('visibility','hidden')});});});
+svg.addEventListener('mouseleave',function(){tt.setAttribute('visibility','hidden')});
+svg.addEventListener('touchmove',function(e){e.preventDefault();var touch=e.touches[0];var r=svg.getBoundingClientRect(),sw=svg.viewBox.baseVal.width,sx=sw/r.width,mx=(touch.clientX-r.left)*sx;
+var cl=null,md=1e9;pts.forEach(function(p){var cx=parseFloat(p.getAttribute('cx')),d=Math.abs(cx-mx);if(d<md){md=d;cl=p}});
+if(cl&&md<80){var cx=parseFloat(cl.getAttribute('cx')),cy=parseFloat(cl.getAttribute('cy')),v=cl.getAttribute('data-val'),t=cl.getAttribute('data-time'),u=cl.getAttribute('data-unit');
+tt.setAttribute('visibility','visible');tl.setAttribute('x1',cx);tl.setAttribute('x2',cx);
+var bx=cx-65;if(bx<5)bx=5;if(bx>sw-140)bx=sw-140;
+tb.setAttribute('x',bx);tb.setAttribute('y',cy-46);tv.setAttribute('x',bx+65);tv.setAttribute('y',cy-27);tv.textContent=v+u;
+tt2.setAttribute('x',bx+65);tt2.setAttribute('y',cy-14);tt2.textContent=t}else{tt.setAttribute('visibility','hidden')}}},{passive:false});
+svg.addEventListener('touchend',function(){tt.setAttribute('visibility','hidden')});
+});
+});
 """
 
 
@@ -319,31 +315,32 @@ def generate_report(data: dict) -> str:
     battery = data.get("battery", {})
     nand = data.get("nand_smart", {})
     crashes = data.get("crashes", {})
-    writers = data.get("app_nand_writers", [])[:10]
-    apps = data.get("app_screen_time", [])[:10]
-    energy = data.get("app_energy", [])[:10]
-    mem = data.get("app_memory", [])[:10]
+    writers = data.get("app_nand_writers", [])[:8]
+    apps = data.get("app_screen_time", [])[:8]
+    mem = data.get("app_memory", [])[:8]
     dev_cfg = data.get("device_config", {})
     trend = data.get("battery_trend", [])
-    bright = data.get("brightness_trend", [])
-    gps = data.get("gps_usage", [])[:10]
-    net = data.get("network_usage", [])[:10]
+    gps = data.get("gps_usage", [])[:8]
+    net = data.get("network_usage", [])[:8]
 
     lang = detect_language(data)
     is_cn = lang == "zh"
 
     health_pct = battery.get("health_pct", 0) or 0
     nand_pct = nand.get("percent_used", 0) or 0
+    nand_remain = 100 - nand_pct
     cycles = battery.get("cycle_count", 0) or 0
     power_hours = nand.get("power_on_hours", 0) or 0
     total_crashes = crashes.get("total", 0)
     hw_tb = (nand.get("host_writes_sectors", 0) or 0) * 512 / 1024**4
     hr_tb = (nand.get("host_reads_sectors", 0) or 0) * 512 / 1024**4
+    nw_tb = (nand.get("nand_writes_sectors", 0) or 0) * 512 / 1024**4
+    nr_tb = (nand.get("nand_reads_sectors", 0) or 0) * 512 / 1024**4
 
-    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     time_range = ""
     if trend:
-        time_range = f'{fmt_datetime_full(trend[0]["ts"])} → {fmt_datetime_full(trend[-1]["ts"])}'
+        time_range = f'{fmt_datetime_full(trend[0]["ts"])} — {fmt_datetime_full(trend[-1]["ts"])}'
 
     soc = dev_cfg.get("soc", "")
     SOC_MAP = {"t8110": "A15 Bionic"}
@@ -356,16 +353,15 @@ def generate_report(data: dict) -> str:
         ("芯片" if is_cn else "SoC", f"{soc_name} ({soc})"),
         ("存储" if is_cn else "Storage", f'{dev_cfg.get("disk_size_gb", "?")} GB'),
         ("可用" if is_cn else "Free", f'{dev_cfg.get("free_space_gb", "?")} GB'),
-        ("基带" if is_cn else "Baseband", dev_cfg.get("baseband_firmware", "?")),
     ]
 
     # KPI row
     h_c = health_color(health_pct)
-    n_c = nand_color(nand_pct)
+    n_c = health_color(nand_remain)
     kpi_items = [
         (f"{health_pct}%", "电池健康" if is_cn else "Battery", h_c),
         (str(cycles), "充电循环" if is_cn else "Cycles", None),
-        (f"{nand_pct}%", "闪存寿命" if is_cn else "NAND", n_c),
+        (f"{nand_remain}%", "闪存剩余" if is_cn else "NAND Left", n_c),
         (f"{power_hours // 24}天" if is_cn else f"{power_hours // 24}d", "运行" if is_cn else "Uptime", None),
         (str(total_crashes), "崩溃" if is_cn else "Crashes", "#ff3b30" if total_crashes > 50 else None),
     ]
@@ -387,7 +383,7 @@ def generate_report(data: dict) -> str:
     <div class="stat-sub">{battery.get("current_max_capacity_mah","?")} / {battery.get("design_capacity_mah","?")} mAh</div>
     <div class="bar"><div style="width:{health_pct}%;background:{h_c}"></div></div>
     <div style="margin-top:10px">
-    <div class="stat-row"><span class="k">{"循环" if is_cn else "Cycles"}</span><span class="v">{cycles}</span></div>
+    <div class="stat-row"><span class="k">{"循环次数" if is_cn else "Cycles"}</span><span class="v">{cycles}</span></div>
     <div class="stat-row"><span class="k">{"设计容量" if is_cn else "Design"}</span><span class="v">{battery.get("design_capacity_mah","?")} mAh</span></div>
     <div class="stat-row"><span class="k">{"当前容量" if is_cn else "Current"}</span><span class="v">{battery.get("current_max_capacity_mah","?")} mAh</span></div>
     <div class="stat-row"><span class="k">{"温度" if is_cn else "Temp"}</span><span class="v">{battery.get("temperature_c","?")}°C</span></div>
@@ -395,30 +391,29 @@ def generate_report(data: dict) -> str:
     </div></div>'''
 
     # NAND card
-    pe_pct = round((nand.get("avg_tlc_pe_cycles", 0) or 0) / (nand.get("eol_cycles", 3000)) * 100, 1)
-    nand_card = f'''<div class="card"><div class="card-title">{"闪存详情" if is_cn else "NAND Flash"}</div>
-    <div class="stat-big" style="color:{n_c}">{nand_pct}%</div>
-    <div class="stat-sub">{"寿命已用" if is_cn else "Lifespan used"} (EoL {nand.get("eol_cycles","?")})</div>
-    <div class="bar"><div style="width:{nand_pct}%;background:{n_c}"></div></div>
+    pe = nand.get("avg_tlc_pe_cycles", 0) or 0
+    eol = nand.get("eol_cycles", 3000)
+    pe_pct = round(pe / eol * 100, 1)
+    nand_card = f'''<div class="card"><div class="card-title">{"闪存健康" if is_cn else "NAND Flash"}</div>
+    <div class="stat-big" style="color:{n_c}">{nand_remain}%</div>
+    <div class="stat-sub">{"剩余寿命" if is_cn else "Remaining"}</div>
+    <div class="bar"><div style="width:{nand_remain}%;background:{n_c}"></div></div>
     <div style="margin-top:10px">
-    <div class="stat-row"><span class="k">{"主机写入" if is_cn else "Host writes"}</span><span class="v">{hw_tb:.1f} TB</span></div>
-    <div class="stat-row"><span class="k">{"主机读取" if is_cn else "Host reads"}</span><span class="v">{hr_tb:.1f} TB</span></div>
-    <div class="stat-row"><span class="k">PE</span><span class="v">{nand.get("avg_tlc_pe_cycles","N/A")} / {nand.get("eol_cycles",3000)} ({pe_pct}%)</span></div>
-    <div class="stat-row"><span class="k">{"坏块" if is_cn else "Bad blocks"}</span><span class="v">{nand.get("grown_bad_blocks",0)} / {nand.get("factory_bad_blocks",0)}</span></div>
-    <div class="stat-row"><span class="k">WAF</span><span class="v">{nand.get("write_amp","N/A")}</span></div>
-    <div class="stat-row"><span class="k">{"运行" if is_cn else "Uptime"}</span><span class="v">{power_hours}h ({power_hours//24}{"天" if is_cn else "d"})</span></div>
+    <div class="stat-row"><span class="k">{"主机写入" if is_cn else "Host write"}</span><span class="v">{hw_tb:.1f} TB</span></div>
+    <div class="stat-row"><span class="k">{"主机读取" if is_cn else "Host read"}</span><span class="v">{hr_tb:.1f} TB</span></div>
+    <div class="stat-row"><span class="k">{"闪存写入" if is_cn else "NAND write"}</span><span class="v">{nw_tb:.1f} TB</span></div>
+    <div class="stat-row"><span class="k">{"闪存读取" if is_cn else "NAND read"}</span><span class="v">{nr_tb:.1f} TB</span></div>
+    <div class="stat-row"><span class="k">PE {"擦写" if is_cn else "cycles"}{tip("NAND闪存单元的擦除-编程次数，TLC颗粒典型寿命3000次" if is_cn else "Program-Erase cycles, TLC NAND typical lifespan 3000")}</span><span class="v">{pe} / {eol} ({pe_pct}%)</span></div>
+    <div class="stat-row"><span class="k">{"坏块" if is_cn else "Bad"}{tip("NAND闪存中标记为不可用的存储块，出厂坏块属正常范围" if is_cn else "Blocks marked unusable, factory bad blocks are normal")}</span><span class="v">{nand.get("grown_bad_blocks",0)} {"增长" if is_cn else "grown"} / {nand.get("factory_bad_blocks",0)} {"出厂" if is_cn else "factory"}</span></div>
+    <div class="stat-row"><span class="k">WAF{tip("写入放大系数，1.0=理想，>2表示闪存控制器开销较大" if is_cn else "Write Amplification Factor, 1.0=ideal, >2=high overhead")}</span><span class="v">{nand.get("write_amp","N/A")}</span></div>
+    <div class="stat-row"><span class="k">{"运行时间" if is_cn else "Uptime"}</span><span class="v">{power_hours}h ({power_hours//24}{"天" if is_cn else "d"})</span></div>
     </div></div>'''
 
-    # Charts
+    # Battery chart
     bat_chart = ""
     if trend:
-        svg = interactive_chart_svg(trend, "level", height=220, color="#34c759", unit="%", y_max=100, warn_line=20, chart_id="bat")
-        bat_chart = f'<div class="card full"><div class="card-title">{"电量趋势" if is_cn else "Battery Level"}</div>{svg}</div>'
-
-    bright_chart = ""
-    if bright:
-        svg = interactive_chart_svg(bright, "brightness", height=180, color="#ff9f0a", unit="%", y_max=100, chart_id="bright")
-        bright_chart = f'<div class="card"><div class="card-title">{"屏幕亮度" if is_cn else "Brightness"}</div>{svg}</div>'
+        svg = interactive_chart_svg(trend, "level", height=200, color="#34c759", unit="%", y_max=100, warn_line=20, chart_id="bat")
+        bat_chart = f'<div class="card full"><div class="card-title">{"电量趋势" if is_cn else "Battery Trend"}</div>{svg}</div>'
 
     # Tables
     writer_rows = ""
@@ -436,7 +431,7 @@ def generate_report(data: dict) -> str:
 
     mem_rows = ""
     for m in mem:
-        mb = (m.get("peak_memory_kb", 0) or 0) / 1024 / 1024  # bytes, not KB
+        mb = (m.get("peak_memory_kb", 0) or 0) / 1024 / 1024
         mem_rows += f'<tr><td>{short_name(m["bundle_id"])}</td><td>{mb:.0f} MB</td></tr>'
 
     gps_rows = ""
@@ -466,21 +461,18 @@ def generate_report(data: dict) -> str:
 <div class="wrap">
 {kpi_html}
 <div class="card-grid">{bat_card}{nand_card}</div>
-<div class="card-grid single" style="margin-top:10px">{bat_chart}</div>
 <div class="card-grid" style="margin-top:10px">
-{bright_chart}
+{bat_chart}
+</div>
+<div class="card-grid" style="margin-top:10px">
 <div class="card"><div class="card-title">{"存储写入排行" if is_cn else "NAND Writes"}</div>
 <table><thead><tr><th>{app_lbl}</th><th>{"写入" if is_cn else "Writes"}</th><th></th></tr></thead><tbody>{writer_rows}</tbody></table></div>
-</div>
-<div class="card-grid" style="margin-top:10px">
 <div class="card"><div class="card-title">{"亮屏时间" if is_cn else "Screen Time"}</div>
 <table><thead><tr><th>{app_lbl}</th><th>{fg_lbl}</th><th>{bg_lbl}</th></tr></thead><tbody>{app_rows}</tbody></table></div>
-<div class="card"><div class="card-title">{"内存峰值" if is_cn else "Peak Memory"}</div>
-<table><thead><tr><th>{app_lbl}</th><th>{"峰值" if is_cn else "Peak"}</th></tr></thead><tbody>{mem_rows if mem_rows else f"<tr><td colspan=2 style=color:var(--ter)>{na}</td></tr>"}</tbody></table></div>
 </div>
 <div class="card-grid" style="margin-top:10px">
-<div class="card"><div class="card-title">{"定位使用" if is_cn else "GPS Usage"}</div>
-<table><thead><tr><th>{app_lbl}</th><th>{"请求" if is_cn else "Req"}</th></tr></thead><tbody>{gps_rows if gps_rows else f"<tr><td colspan=2 style=color:var(--ter)>{na}</td></tr>"}</tbody></table></div>
+<div class="card"><div class="card-title">{"内存峰值" if is_cn else "Peak Memory"}</div>
+<table><thead><tr><th>{app_lbl}</th><th>{"峰值" if is_cn else "Peak"}</th></tr></thead><tbody>{mem_rows if mem_rows else f"<tr><td colspan=2 style=color:var(--ter)>{na}</td></tr>"}</tbody></table></div>
 <div class="card"><div class="card-title">{"网络流量" if is_cn else "Network"}</div>
 <table><thead><tr><th>{app_lbl}</th><th>↓</th><th>↑</th></tr></thead><tbody>{net_rows if net_rows else f"<tr><td colspan=3 style=color:var(--ter)>{na}</td></tr>"}</tbody></table></div>
 </div>
