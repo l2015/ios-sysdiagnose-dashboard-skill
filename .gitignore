@@ -6,8 +6,11 @@ dist/
 build/
 .venv/
 venv/
-*.json
 *.html
 *.tar.gz
 *.PLSQL
 cases/
+
+# User data (not project metadata)
+data.json
+sd_data*.json
