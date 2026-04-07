@@ -126,21 +126,31 @@ function parseNandSmart(baseDir) {
 // ─── App Rankings ───────────────────────────────────────────────────────────
 
 function parseAppNandWriters(db, limit = 25) {
-  return safeQuery(db,
-    `SELECT BundleId, SUM(LogicalWrites) as total
-     FROM PLCoalitionAgent_Aggregate_NANDStats
-     WHERE BundleId IS NOT NULL AND BundleId != ''
-     GROUP BY BundleId ORDER BY total DESC LIMIT ?`, [limit]
-  ).map(r => ({ bundle_id: r.BundleId, logical_writes_bytes: r.total }));
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLCoalitionAgent_Aggregate_NANDStats`);
+  return {
+    items: safeQuery(db,
+      `SELECT BundleId, SUM(LogicalWrites) as total
+       FROM PLCoalitionAgent_Aggregate_NANDStats
+       WHERE BundleId IS NOT NULL AND BundleId != ''
+       GROUP BY BundleId ORDER BY total DESC LIMIT ?`, [limit]
+    ).map(r => ({ bundle_id: r.BundleId, logical_writes_bytes: r.total })),
+    min_ts: range?.min_ts,
+    max_ts: range?.max_ts,
+  };
 }
 
 function parseAppScreenTime(db, limit = 25) {
-  return safeQuery(db,
-    `SELECT BundleID, SUM(ScreenOnTime) as screen, SUM(BackgroundTime) as bg
-     FROM PLAppTimeService_Aggregate_AppRunTime
-     WHERE BundleID IS NOT NULL AND BundleID != ''
-     GROUP BY BundleID ORDER BY screen DESC LIMIT ?`, [limit]
-  ).map(r => ({ bundle_id: r.BundleID, foreground_sec: r.screen || 0, background_sec: r.bg || 0 }));
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLAppTimeService_Aggregate_AppRunTime`);
+  return {
+    items: safeQuery(db,
+      `SELECT BundleID, SUM(ScreenOnTime) as screen, SUM(BackgroundTime) as bg
+       FROM PLAppTimeService_Aggregate_AppRunTime
+       WHERE BundleID IS NOT NULL AND BundleID != ''
+       GROUP BY BundleID ORDER BY screen DESC LIMIT ?`, [limit]
+    ).map(r => ({ bundle_id: r.BundleID, foreground_sec: r.screen || 0, background_sec: r.bg || 0 })),
+    min_ts: range?.min_ts,
+    max_ts: range?.max_ts,
+  };
 }
 
 function parseAppEnergy(db, limit = 25) {
@@ -231,15 +241,20 @@ function parseCrashes(baseDir) {
 
 function parseAppExits(db, limit = 15) {
   const reasonMap = { 0: '正常退出', 1: 'Jetsam内存回收', 2: '看门狗超时', 3: '崩溃' };
-  return safeQuery(db,
-    `SELECT Identifier, COUNT(*) as cnt, Reason
-     FROM PLApplicationAgent_EventPoint_ApplicationExitReason
-     WHERE Identifier IS NOT NULL AND Identifier != ''
-     GROUP BY Identifier, Reason ORDER BY cnt DESC LIMIT ?`, [limit]
-  ).map(r => ({
-    bundle_id: r.Identifier, count: r.cnt, reason_code: r.Reason,
-    reason: reasonMap[r.Reason] || `未知(${r.Reason})`,
-  }));
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLApplicationAgent_EventPoint_ApplicationExitReason`);
+  return {
+    items: safeQuery(db,
+      `SELECT Identifier, COUNT(*) as cnt, Reason
+       FROM PLApplicationAgent_EventPoint_ApplicationExitReason
+       WHERE Identifier IS NOT NULL AND Identifier != ''
+       GROUP BY Identifier, Reason ORDER BY cnt DESC LIMIT ?`, [limit]
+    ).map(r => ({
+      bundle_id: r.Identifier, count: r.cnt, reason_code: r.Reason,
+      reason: reasonMap[r.Reason] || `未知(${r.Reason})`,
+    })),
+    min_ts: range?.min_ts,
+    max_ts: range?.max_ts,
+  };
 }
 
 function parseProcessExits(db, limit = 15) {

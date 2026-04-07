@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.3';
+const VERSION = '0.2.4';
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
@@ -87,8 +87,9 @@ function shortName(bundleId) {
 
 function detectLanguage(data, tzOffsetMinutes) {
   const bundles = new Set();
+  const extractItems = d => (d?.items || d || []);
   for (const key of ['app_screen_time', 'app_nand_writers', 'app_memory', 'app_energy', 'app_cpu']) {
-    for (const item of (data[key] || [])) {
+    for (const item of extractItems(data[key])) {
       const bid = item.bundle_id || item.name;
       if (bid) bundles.add(bid);
     }
@@ -111,6 +112,15 @@ function healthColor(pct) {
   if (pct >= 90) return '#34c759';
   if (pct >= 80) return '#ff9f0a';
   return '#ff3b30';
+}
+
+function rangeLabel(minTs, maxTs, tzMin, isCn) {
+  if (!minTs || !maxTs) return '';
+  const days = Math.round((maxTs - minTs) / 86400);
+  if (days <= 0) return isCn ? '近24小时' : 'last 24h';
+  const start = fmtDatetime(minTs, tzMin).split(' ')[0];
+  const end = fmtDatetime(maxTs, tzMin).split(' ')[0];
+  return `${start}~${end}`;
 }
 
 // ─── SVG Chart ──────────────────────────────────────────────────────────────
@@ -252,9 +262,12 @@ function generateReport(data) {
   const battery = data.battery || {};
   const nand = data.nand_smart || {};
   const crashes = data.crashes || {};
-  const appExits = data.app_exits || [];
-  const writers = (data.app_nand_writers || []).slice(0, 8);
-  const apps = (data.app_screen_time || []).slice(0, 8);
+  const appExitsData = data.app_exits || { items: [] };
+  const appExits = appExitsData.items || appExitsData; // backward compat
+  const writersData = data.app_nand_writers || { items: [] };
+  const writers = (writersData.items || writersData).slice(0, 8);
+  const appsData = data.app_screen_time || { items: [] };
+  const apps = (appsData.items || appsData).slice(0, 8);
   const mem = (data.app_memory || []).slice(0, 8);
   const devCfg = data.device_config || {};
   const trend = data.battery_trend || [];
@@ -305,7 +318,6 @@ function generateReport(data) {
 
   const metaLines = [
     `${isCn ? '电量/崩溃日志' : 'Battery/Crash log'}: ${logRange} (${isCn ? '约' : '~'}${Math.round((trend.length ? (trend[trend.length - 1].ts - trend[0].ts) : 0) / 3600)}h)`,
-    `${isCn ? 'App 数据累计自' : 'App data since'}: ${battery.total_operating_hours ? Math.round(battery.total_operating_hours / 24) + (isCn ? '天前抹机' : 'd ago (last erase)') : 'N/A'}`,
     `${isCn ? '报告生成' : 'Generated'}: ${generatedAt} (${tzLabel})`,
     `Analyzer: v${VERSION}`,
   ];
@@ -436,9 +448,9 @@ ${crashDetailStr}
     const rows = jetsamExitsTop.map(e =>
       `<tr><td>${shortName(e.bundle_id)}</td><td style="font-weight:600;color:#ff9f0a">${e.count}</td></tr>`
     ).join('');
-    appExitCard = `<div class="card"><div class="card-title">${isCn ? '杀后台排行（累计）' : 'Jetsam Kill Ranking (Cumulative)'}</div>
+    appExitCard = `<div class="card"><div class="card-title">${isCn ? '杀后台排行' : 'Jetsam Kill Ranking'} ${rangeLabel(appExitsData.min_ts, appExitsData.max_ts, tzMin, isCn)}</div>
 <div class="stat-big" style="color:${totalKills > 200 ? '#ff9f0a' : 'var(--sec)'}">${totalKills}</div>
-<div class="stat-sub" style="margin-bottom:8px">${isCn ? '自上次抹掉所有内容起，系统因内存不足强制结束应用的总次数' : 'Total times system killed apps since last erase'}</div>
+<div class="stat-sub" style="margin-bottom:8px">${isCn ? '系统因内存不足强制结束应用的总次数' : 'Total times system killed apps to reclaim memory'}</div>
 <table><thead><tr><th>${al}</th><th>${isCn ? '被杀次数' : 'Kills'}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
@@ -463,11 +475,9 @@ ${crashCard}
 ${appExitCard || `<div class="card"><div class="card-title">${isCn ? 'Jetsam 内存回收' : 'Jetsam Kills'}</div><div class="stat-sub">${na}</div></div>`}
 </div>
 <div class="card-grid" style="margin-top:10px">
-<div class="card"><div class="card-title">${isCn ? '存储写入排行（累计）' : 'NAND Writes (Cumulative)'}</div>
-<div class="stat-sub" style="margin-bottom:8px">${isCn ? '自上次抹掉所有内容起' : 'Since last erase'}</div>
+<div class="card"><div class="card-title">${isCn ? '存储写入排行' : 'NAND Writes'} ${rangeLabel(writersData.min_ts, writersData.max_ts, tzMin, isCn)}</div>
 <table><thead><tr><th>${al}</th><th>${isCn ? '写入' : 'Writes'}</th><th></th></tr></thead><tbody>${writerRows}</tbody></table></div>
-<div class="card"><div class="card-title">${isCn ? '亮屏时间（累计）' : 'Screen Time (Cumulative)'}</div>
-<div class="stat-sub" style="margin-bottom:8px">${isCn ? '自上次抹掉所有内容起' : 'Since last erase'}</div>
+<div class="card"><div class="card-title">${isCn ? '亮屏时间' : 'Screen Time'} ${rangeLabel(appsData.min_ts, appsData.max_ts, tzMin, isCn)}</div>
 <table><thead><tr><th>${al}</th><th>${isCn ? '前台' : 'FG'}</th><th>${isCn ? '后台' : 'BG'}</th></tr></thead><tbody>${appRows}</tbody></table></div>
 </div>
 <div class="card-grid" style="margin-top:10px">
