@@ -54,7 +54,7 @@ node {baseDir}/scripts/extract.mjs "$BASE" -o data.json
 ### 3. Generate HTML report
 
 ```bash
-node {baseDir}/scripts/report.mjs data.json -o report.html
+node {baseDir}/scripts/report.mjs data.json -o ~/.openclaw/workspace/iphone-report.html
 ```
 
 ### 4. Cleanup
@@ -66,7 +66,7 @@ rm -rf "$WORK"
 ## Quick One-Liner
 
 ```bash
-WORK=$(mktemp -d) && tar xzf "<input>.tar.gz" -C "$WORK" && BASE=$(find "$WORK" -maxdepth 1 -type d | head -1) && node {baseDir}/scripts/extract.mjs "$BASE" -o /tmp/sd-data.json && node {baseDir}/scripts/report.mjs /tmp/sd-data.json -o report.html && rm -rf "$WORK"
+WORK=$(mktemp -d) && tar xzf "<input>.tar.gz" -C "$WORK" && BASE=$(find "$WORK" -maxdepth 1 -type d | head -1) && node {baseDir}/scripts/extract.mjs "$BASE" -o /tmp/sd-data.json && node {baseDir}/scripts/report.mjs /tmp/sd-data.json -o ~/.openclaw/workspace/iphone-report.html && rm -rf "$WORK"
 ```
 
 ## Extracted Data
