@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.15';
+const VERSION = '0.2.16';
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
@@ -605,7 +605,7 @@ function generateReport(data) {
       const othersSum = writers.slice(8).reduce((s, w) => s + (w.logical_writes_bytes || 0), 0);
       if (othersSum > 0) topWriters.push({ label: isCn ? '其他' : 'Others', value: othersSum });
     }
-    writerDonut = donutChartSvg(topWriters, { size: 140, chartId: 'nand' });
+    writerDonut = donutChartSvg(topWriters, { size: 200, chartId: 'nand' });
   }
 
   let appRows = '';
@@ -668,10 +668,10 @@ function generateReport(data) {
 <div class="stat-big" style="color:${totalCrashes > 20 ? '#ff3b30' : totalCrashes > 5 ? '#ff9f0a' : 'var(--sec)'}">${totalCrashes}</div>
 <div class="stat-sub">${isCn ? '诊断日志中的崩溃/异常事件' : 'Crash/exception events in logs'}</div>
 <div style="margin-top:8px">
-<div class="stat-row"><span class="k">Jetsam ${isCn ? '内存回收' : 'memory kill'}${T(isCn ? '系统内存不足时强制结束进程释放内存' : 'iOS kills processes when memory low')}</span><span class="v" style="color:${jetsam > 10 ? '#ff3b30' : 'inherit'}">${jetsam} ${jetsamToggle}</span></div>
+<div class="stat-row"><span class="k">Jetsam ${isCn ? '内存回收' : 'memory kill'}${T(isCn ? '系统内存不足时强制结束进程释放内存' : 'iOS kills processes when memory low')}</span><span class="v" style="color:${jetsam > 10 ? '#ff3b30' : 'inherit'}">${jetsamToggle}${jetsam}</span></div>
 ${jetsamDetail}
 <div class="stat-row"><span class="k">Safari ${isCn ? '崩溃' : 'crash'}${T(isCn ? 'Safari异常退出' : 'Safari abnormal exit')}</span><span class="v">${crashes.safari || 0}</span></div>
-<div class="stat-row"><span class="k">${isCn ? '磁盘写入超限' : 'Disk write exceed'}${T(isCn ? 'App短时间写入过多被限制' : 'App wrote too much, throttled')}</span><span class="v">${crashes.disk_writes || 0} ${diskToggle}</span></div>
+<div class="stat-row"><span class="k">${isCn ? '磁盘写入超限' : 'Disk write exceed'}${T(isCn ? 'App短时间写入过多被限制' : 'App wrote too much, throttled')}</span><span class="v">${diskToggle}${crashes.disk_writes || 0}</span></div>
 ${diskDetail}
 <div class="stat-row"><span class="k">CPU ${isCn ? '超限' : 'resource'}${T(isCn ? '进程持续高CPU占用被记录' : 'High CPU usage detected')}</span><span class="v">${crashes.cpu_resource || 0}</span></div>
 <div class="stat-row"><span class="k">SFA ${isCn ? '安全事件' : 'security'}${T(isCn ? 'Apple安全框架事件，通常无影响' : 'Security framework, usually harmless')}</span><span class="v">${crashes.sfa || 0}</span></div>

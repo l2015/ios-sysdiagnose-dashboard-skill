@@ -15,7 +15,8 @@ function extractStrings(buf, minLength = 4) {
   let seq = '';
   for (let i = 0; i < buf.length; i++) {
     const b = buf[i];
-    if (b >= 0x20 && b < 0x7f) { seq += String.fromCharCode(b); }
+    // Accept printable ASCII (0x20-0x7e), TAB (0x09), and LF (0x0a) for key-value pairs
+    if ((b >= 0x20 && b < 0x7f) || b === 0x09) { seq += String.fromCharCode(b); }
     else { if (seq.length >= minLength) parts.push(seq); seq = ''; }
   }
   if (seq.length >= minLength) parts.push(seq);
@@ -206,6 +207,10 @@ function parseNandSmart(baseDir) {
     num_efail: /numEfail:\s*(\d+)/,
     unclean_boots: /uncleanBoots:\s*(\d+)/,
     total_boots: /boots:\s*(\d+)/,
+    // 从日志行尾部的 "USER PARTITION" 块提取擦写统计
+    max_pe_cycles_user: /Max\s*\(\s*(\d+)/,
+    min_pe_cycles_user: /Min\s*\(\s*(\d+)/,
+    avg_pe_cycles_user: /Avg\s*\(\s*(\d+)/,
   };
 
   const data = {};
