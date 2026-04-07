@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.2';
+const VERSION = '0.2.3';
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
@@ -280,6 +280,12 @@ function generateReport(data) {
   const nwTb = (nand.nand_writes_sectors || 0) * 512 / 1024 ** 4;
   const nrTb = (nand.nand_reads_sectors || 0) * 512 / 1024 ** 4;
 
+  const crashDetails = crashes.details || [];
+
+  // Jetsam total kills (sum of all app kill counts)
+  const jetsamExits = appExits.filter(e => e.reason_code === 1);
+  const totalKills = jetsamExits.reduce((s, e) => s + (e.count || 0), 0);
+
   const generatedAt = fmtDatetimeFull(Math.floor(Date.now() / 1000), tzMin);
   let logRange = '';
   if (trend.length) logRange = `${fmtDatetimeFull(trend[0].ts, tzMin)} — ${fmtDatetimeFull(trend[trend.length - 1].ts, tzMin)}`;
@@ -298,8 +304,9 @@ function generateReport(data) {
   ];
 
   const metaLines = [
-    `${isCn ? '日志记录' : 'Log range'}: ${logRange}`,
-    `${isCn ? '报告生成' : 'Generated'}: ${generatedAt}`,
+    `${isCn ? '电量/崩溃日志' : 'Battery/Crash log'}: ${logRange} (${isCn ? '约' : '~'}${Math.round((trend.length ? (trend[trend.length - 1].ts - trend[0].ts) : 0) / 3600)}h)`,
+    `${isCn ? 'App 数据累计自' : 'App data since'}: ${battery.total_operating_hours ? Math.round(battery.total_operating_hours / 24) + (isCn ? '天前抹机' : 'd ago (last erase)') : 'N/A'}`,
+    `${isCn ? '报告生成' : 'Generated'}: ${generatedAt} (${tzLabel})`,
     `Analyzer: v${VERSION}`,
   ];
 
@@ -313,7 +320,7 @@ function generateReport(data) {
     [String(cycles), isCn ? '充电循环' : 'Cycles', cycleColor],
     [`${nandRemain}%`, isCn ? '闪存剩余' : 'NAND Left', nC],
     [`${totalCrashes}`, isCn ? '日志崩溃' : 'Crashes', totalCrashes > 20 ? '#ff3b30' : null],
-    [`${appExits.length}`, isCn ? '杀后台次数' : 'Kills', null],
+    [`${totalKills}`, isCn ? '杀后台次数' : 'Kills', totalKills > 200 ? '#ff9f0a' : null],
   ];
   const kpiHtml = '<div class="kpi-row">' + kpiItems.map(([val, lbl, color]) =>
     `<div class="kpi"><div class="val"${color ? ` style="color:${color}"` : ''}>${val}</div><div class="lbl">${lbl}</div></div>`
@@ -401,7 +408,15 @@ function generateReport(data) {
 
   // ─── Crash Card ───
   const jetsam = crashes.jetsam || 0;
-  const crashCard = `<div class="card"><div class="card-title">${isCn ? '崩溃分析（日志文件）' : 'Crash Analysis (Log Files)'}</div>
+  // Crash detail lines for disk write exceedance
+  let crashDetailStr = '';
+  if (crashDetails.length) {
+    crashDetailStr = crashDetails.map(d =>
+      `<div class="stat-row"><span class="k">${shortName(d.app)}</span><span class="v">${isCn ? '磁盘写入超限' : 'Disk write exceed'}</span></div>`
+    ).join('');
+  }
+
+  const crashCard = `<div class="card"><div class="card-title">${isCn ? '崩溃分析（近 48 小时）' : 'Crash Analysis (48h)'}</div>
 <div class="stat-big" style="color:${totalCrashes > 20 ? '#ff3b30' : totalCrashes > 5 ? '#ff9f0a' : 'var(--sec)'}">${totalCrashes}</div>
 <div class="stat-sub">${isCn ? '48小时内诊断日志中的崩溃/异常事件' : 'Crash/exception events in 48h logs'}</div>
 <div style="margin-top:8px">
@@ -411,17 +426,19 @@ function generateReport(data) {
 <div class="stat-row"><span class="k">CPU ${isCn ? '超限' : 'resource'}${T(isCn ? '进程持续高CPU占用被系统检测并记录' : 'Process sustained high CPU usage detected')}</span><span class="v">${crashes.cpu_resource || 0}</span></div>
 <div class="stat-row"><span class="k">SFA ${isCn ? '安全事件' : 'security'}${T(isCn ? 'Apple安全框架事件，通常与钥匙串、CloudKit同步相关，一般无影响' : 'Apple security framework events, usually harmless')}</span><span class="v">${crashes.sfa || 0}</span></div>
 <div class="stat-row"><span class="k">${isCn ? '其他' : 'Other'}</span><span class="v">${crashes.other || 0}</span></div>
+${crashDetailStr}
 </div></div>`;
 
   // ─── App Exits Card ───
   let appExitCard = '';
-  const jetsamExits = appExits.filter(e => e.reason_code === 1).slice(0, 8);
-  if (jetsamExits.length) {
-    const rows = jetsamExits.map(e =>
+  const jetsamExitsTop = jetsamExits.slice(0, 8);
+  if (jetsamExitsTop.length) {
+    const rows = jetsamExitsTop.map(e =>
       `<tr><td>${shortName(e.bundle_id)}</td><td style="font-weight:600;color:#ff9f0a">${e.count}</td></tr>`
     ).join('');
-    appExitCard = `<div class="card"><div class="card-title">${isCn ? 'Jetsam 内存回收排行（累计）' : 'Jetsam Memory Kills (Cumulative)'}</div>
-<div class="stat-sub" style="margin-bottom:8px">${isCn ? '系统因内存不足强制结束应用的次数' : 'Times system killed app to reclaim memory'}</div>
+    appExitCard = `<div class="card"><div class="card-title">${isCn ? '杀后台排行（累计）' : 'Jetsam Kill Ranking (Cumulative)'}</div>
+<div class="stat-big" style="color:${totalKills > 200 ? '#ff9f0a' : 'var(--sec)'}">${totalKills}</div>
+<div class="stat-sub" style="margin-bottom:8px">${isCn ? '自上次抹掉所有内容起，系统因内存不足强制结束应用的总次数' : 'Total times system killed apps since last erase'}</div>
 <table><thead><tr><th>${al}</th><th>${isCn ? '被杀次数' : 'Kills'}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
@@ -447,12 +464,15 @@ ${appExitCard || `<div class="card"><div class="card-title">${isCn ? 'Jetsam 内
 </div>
 <div class="card-grid" style="margin-top:10px">
 <div class="card"><div class="card-title">${isCn ? '存储写入排行（累计）' : 'NAND Writes (Cumulative)'}</div>
+<div class="stat-sub" style="margin-bottom:8px">${isCn ? '自上次抹掉所有内容起' : 'Since last erase'}</div>
 <table><thead><tr><th>${al}</th><th>${isCn ? '写入' : 'Writes'}</th><th></th></tr></thead><tbody>${writerRows}</tbody></table></div>
 <div class="card"><div class="card-title">${isCn ? '亮屏时间（累计）' : 'Screen Time (Cumulative)'}</div>
+<div class="stat-sub" style="margin-bottom:8px">${isCn ? '自上次抹掉所有内容起' : 'Since last erase'}</div>
 <table><thead><tr><th>${al}</th><th>${isCn ? '前台' : 'FG'}</th><th>${isCn ? '后台' : 'BG'}</th></tr></thead><tbody>${appRows}</tbody></table></div>
 </div>
 <div class="card-grid" style="margin-top:10px">
 <div class="card"><div class="card-title">${isCn ? '内存峰值' : 'Peak Memory'}</div>
+<div class="stat-sub" style="margin-bottom:8px">${isCn ? '日志期间观测到的峰值' : 'Peak observed during logging'}</div>
 <table><thead><tr><th>${al}</th><th>${isCn ? '峰值' : 'Peak'}</th></tr></thead><tbody>${memRows || `<tr><td colspan=2 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
 <div class="card"><div class="card-title">${isCn ? '网络流量（累计）' : 'Network (Cumulative)'}</div>
 <table><thead><tr><th>${al}</th><th>↓</th><th>↑</th></tr></thead><tbody>${netRows || `<tr><td colspan=3 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>

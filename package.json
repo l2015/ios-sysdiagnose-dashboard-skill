@@ -1,6 +1,6 @@
 {
   "name": "iphone-sysdiagnose",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Analyze iPhone sysdiagnose archives — battery, NAND, apps, crashes → HTML report",
   "license": "MIT",
   "type": "module",
