@@ -17,8 +17,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/<you>/iphone-sysdiagnose.git
-cd iphone-sysdiagnose/scripts
+git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
+cd ios-sysdiagnose-dashboard-skill/scripts
 npm install
 
 # 解压 sysdiagnose 归档
@@ -54,8 +54,8 @@ rm -rf "$WORK"
 ### 安装
 
 ```bash
-git clone https://github.com/<you>/iphone-sysdiagnose.git ~/.openclaw/skills/iphone-sysdiagnose
-cd ~/.openclaw/skills/iphone-sysdiagnose/scripts && npm install
+git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git ~/.openclaw/skills/ios-sysdiagnose-dashboard-skill
+cd ~/.openclaw/skills/ios-sysdiagnose-dashboard-skill/scripts && npm install
 ```
 
 ## 输出报告
@@ -83,7 +83,7 @@ Apple HIG 风格暗色主题 HTML 报告，包含：
 ## 项目结构
 
 ```
-iphone-sysdiagnose/
+ios-sysdiagnose-dashboard-skill/
 ├── SKILL.md                 # OpenClaw 技能定义
 ├── _meta.json               # ClawHub 元数据
 ├── package.json             # 项目管理
@@ -222,6 +222,10 @@ iphone-sysdiagnose/
 - NAND 供应商/型号在用户级 sysdiagnose 中不可见
 - PowerLog 表结构因 iOS 版本不同可能有差异
 - 累计数据（通电时间、Jetsam 次数等）自上次"抹掉所有内容"起算
+
+## Acknowledgments
+
+- [EC-DIGIT-CSIRC/sysdiagnose](https://github.com/EC-DIGIT-CSIRC/sysdiagnose) (SAF) — PowerLog 表结构参考，Apollo 模块用作数据映射灵感
 
 ## 许可证
 

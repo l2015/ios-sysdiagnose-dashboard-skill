@@ -1,5 +1,5 @@
 ---
-name: iphone-sysdiagnose
+name: ios-sysdiagnose-dashboard-skill
 version: 0.2.13
 description: >
   Analyze iPhone sysdiagnose (.tar.gz) diagnostic archives. Extracts battery health (cycle count, capacity, trend),
