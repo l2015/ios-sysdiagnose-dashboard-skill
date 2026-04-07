@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "iphone-sysdiagnose"
+version = "0.1.1"
+description = "Analyze iPhone sysdiagnose archives: battery, NAND SMART, app usage, crashes"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+sysdiag-analyze = "scripts.extract:main"
+
+[tool.setuptools.packages.find]
+include = ["scripts*"]
