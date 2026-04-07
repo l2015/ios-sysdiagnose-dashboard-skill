@@ -7,19 +7,28 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
-function fmtDatetime(ts) {
-  return new Date(ts * 1000).toLocaleString('en-US', {
-    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
-    timeZone: 'UTC',
-  });
+function fmtDatetime(ts, tzOffsetMinutes) {
+  const d = new Date((ts + (tzOffsetMinutes || 0) * 60) * 1000);
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mi = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${mm}/${dd} ${hh}:${mi}`;
 }
 
-function fmtDatetimeFull(ts) {
-  return new Date(ts * 1000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+function fmtDatetimeFull(ts, tzOffsetMinutes) {
+  const d = new Date((ts + (tzOffsetMinutes || 0) * 60) * 1000);
+  const y = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mi = String(d.getUTCMinutes()).padStart(2, '0');
+  const ss = String(d.getUTCSeconds()).padStart(2, '0');
+  return `${y}-${mm}-${dd} ${hh}:${mi}:${ss}`;
 }
 
 function fmtBytes(b) {
@@ -76,7 +85,7 @@ function shortName(bundleId) {
 
 // ─── Language Detection ─────────────────────────────────────────────────────
 
-function detectLanguage(data) {
+function detectLanguage(data, tzOffsetMinutes) {
   const bundles = new Set();
   for (const key of ['app_screen_time', 'app_nand_writers', 'app_memory', 'app_energy', 'app_cpu']) {
     for (const item of (data[key] || [])) {
@@ -90,6 +99,8 @@ function detectLanguage(data) {
   for (const b of bundles) {
     for (const p of cnPrefixes) { if (b.startsWith(p)) return 'zh'; }
   }
+  // Fallback: timezone hint (UTC+5 to UTC+9 covers China/Japan/Korea)
+  if (tzOffsetMinutes >= 300 && tzOffsetMinutes <= 540) return 'zh';
   return 'en';
 }
 
@@ -106,7 +117,7 @@ function healthColor(pct) {
 
 function interactiveChartSvg(points, valueKey, opts = {}) {
   const { width = 1000, height = 200, color = '#34c759', unit = '%',
-    yMax = null, warnLine = null, chartId = 'chart' } = opts;
+    yMax = null, warnLine = null, chartId = 'chart', tzOffsetMinutes = 0 } = opts;
 
   if (points.length < 2) return '<div class="chart-empty">数据不足</div>';
 
@@ -131,7 +142,7 @@ function interactiveChartSvg(points, valueKey, opts = {}) {
   let timeSvg = '';
   for (let i = 0; i < 7; i++) {
     const f = i / 6, x = pl + f * cw, ts = t0 + f * tr;
-    timeSvg += `<text x="${x.toFixed(0)}" y="${pt + ch + 18}" text-anchor="middle" class="axis-label">${fmtDatetime(ts)}</text>`;
+    timeSvg += `<text x="${x.toFixed(0)}" y="${pt + ch + 18}" text-anchor="middle" class="axis-label">${fmtDatetime(ts, tzOffsetMinutes)}</text>`;
     timeSvg += `<line x1="${x.toFixed(0)}" y1="${pt}" x2="${x.toFixed(0)}" y2="${pt + ch}" class="grid-line"/>`;
   }
 
@@ -153,7 +164,7 @@ function interactiveChartSvg(points, valueKey, opts = {}) {
   const hover = points.map(p => {
     const x = tx(p.ts), y = ty(p[valueKey] || 0);
     const val = (p[valueKey] || 0).toFixed(1);
-    const tsStr = fmtDatetimeFull(p.ts);
+    const tsStr = fmtDatetimeFull(p.ts, tzOffsetMinutes);
     return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="8" fill="transparent" class="hover-point" data-val="${val}" data-time="${tsStr}" data-unit="${unit}"/>`;
   }).join('');
 
@@ -250,7 +261,11 @@ function generateReport(data) {
   const gps = (data.gps_usage || []).slice(0, 8);
   const net = (data.network_usage || []).slice(0, 8);
 
-  const lang = detectLanguage(data);
+  const tz = data.timezone || { offsetMinutes: 0, label: 'UTC' };
+  const tzMin = tz.offsetMinutes || 0;
+  const tzLabel = tz.label || 'UTC';
+
+  const lang = detectLanguage(data, tzMin);
   const isCn = lang === 'zh';
 
   const healthPct = battery.health_pct || 0;
@@ -265,9 +280,9 @@ function generateReport(data) {
   const nwTb = (nand.nand_writes_sectors || 0) * 512 / 1024 ** 4;
   const nrTb = (nand.nand_reads_sectors || 0) * 512 / 1024 ** 4;
 
-  const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  const generatedAt = fmtDatetimeFull(Math.floor(Date.now() / 1000), tzMin);
   let logRange = '';
-  if (trend.length) logRange = `${fmtDatetimeFull(trend[0].ts)} — ${fmtDatetimeFull(trend[trend.length - 1].ts)}`;
+  if (trend.length) logRange = `${fmtDatetimeFull(trend[0].ts, tzMin)} — ${fmtDatetimeFull(trend[trend.length - 1].ts, tzMin)}`;
 
   const soc = devCfg.soc || '';
   const SOC_MAP = { 't8110': 'A15 Bionic' };
@@ -347,7 +362,7 @@ function generateReport(data) {
   if (trend.length >= 2) {
     const spanH = (trend[trend.length - 1].ts - trend[0].ts) / 3600;
     const spanLabel = `（${isCn ? '约' : '~'}${spanH.toFixed(0)}${isCn ? '小时' : 'h'} ${isCn ? '日志' : 'log'}）`;
-    const svg = interactiveChartSvg(trend, 'level', { height: 200, color: '#34c759', unit: '%', yMax: 100, warnLine: 20, chartId: 'bat' });
+    const svg = interactiveChartSvg(trend, 'level', { height: 200, color: '#34c759', unit: '%', yMax: 100, warnLine: 20, chartId: 'bat', tzOffsetMinutes: tzMin });
     batChart = `<div class="card full"><div class="card-title">${isCn ? '电量趋势' : 'Battery Trend'} ${spanLabel}</div>${svg}</div>`;
   }
 
@@ -440,7 +455,7 @@ ${appExitCard || `<div class="card"><div class="card-title">${isCn ? 'Jetsam 内
 <div class="card"><div class="card-title">${isCn ? '网络流量（累计）' : 'Network (Cumulative)'}</div>
 <table><thead><tr><th>${al}</th><th>↓</th><th>↑</th></tr></thead><tbody>${netRows || `<tr><td colspan=3 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
 </div>
-<div class="footer">iPhone Sysdiagnose Analyzer v${VERSION} · ${generatedAt}</div>
+<div class="footer">iPhone Sysdiagnose Analyzer v${VERSION} · ${generatedAt} (${tzLabel})</div>
 </div>
 <script>${CHART_JS}</script>
 </body></html>`;

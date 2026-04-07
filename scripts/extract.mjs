@@ -251,6 +251,22 @@ function parseProcessExits(db, limit = 15) {
   ).map(r => ({ name: r.ProcessName, count: r.cnt, namespace: r.ReasonNamespace }));
 }
 
+// ─── Timezone from directory name ───────────────────────────────────────────
+
+function detectTimezone(baseDir) {
+  // sysdiagnose_2026.04.08_00-00-42+0800_iPhone-OS_iPhone_23D8133
+  const dirName = baseDir.split('/').pop();
+  const m = dirName.match(/([+-]\d{4})/);
+  if (m) {
+    const offset = m[1]; // e.g. "+0800"
+    const hours = parseInt(offset.slice(1, 3), 10) * (offset[0] === '+' ? 1 : -1);
+    const mins = parseInt(offset.slice(3, 5), 10) * (offset[0] === '+' ? 1 : -1);
+    return { offset, offsetMinutes: hours * 60 + (offset[0] === '+' ? mins : -mins),
+      label: `UTC${offset.slice(0,3)}:${offset.slice(3)}` };
+  }
+  return { offset: '+0000', offsetMinutes: 0, label: 'UTC' };
+}
+
 // ─── Device & System ────────────────────────────────────────────────────────
 
 function parseDeviceConfig(db) {
@@ -276,6 +292,7 @@ function parsePartitions(baseDir) {
 
 function extractAll(baseDir, maxPoints = 200) {
   const data = {};
+  data.timezone = detectTimezone(baseDir);
   data.crashes = parseCrashes(baseDir);
   data.partitions = parsePartitions(baseDir);
   data.nand_smart = parseNandSmart(baseDir);
