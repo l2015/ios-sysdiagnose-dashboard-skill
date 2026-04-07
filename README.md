@@ -1,6 +1,6 @@
 # iPhone Sysdiagnose Analyzer
 
-> OpenClaw Skill · 版本 0.2.14
+> OpenClaw Skill · 版本 0.2.15
 
 分析 iPhone sysdiagnose 诊断归档文件，提取电池健康、闪存状态、应用使用、崩溃日志等数据，生成自包含的 HTML 报告。
 
@@ -41,7 +41,6 @@ rm -rf "$WORK"
 ## 环境要求
 
 - Node.js 18+
-- `strings` 命令（macOS / Linux 自带）
 
 ## 作为 OpenClaw Skill 使用
 
@@ -96,6 +95,9 @@ ios-sysdiagnose-dashboard-skill/
 ```
 
 ## 更新日志
+
+### v0.2.15
+- 移除 `strings` 命令依赖，用纯 JS 实现 extractStrings，零外部依赖跨平台
 
 ### v0.2.14
 - better-sqlite3 替换为 sql.js（纯 JS，零编译，跨平台），Windows 无需 VS Build Tools

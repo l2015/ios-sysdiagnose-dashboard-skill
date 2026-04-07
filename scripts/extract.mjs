@@ -8,7 +8,19 @@
 import initSqlJs from 'sql.js';
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+
+// Pure JS replacement for the `strings` command — extracts printable ASCII sequences from binary data
+function extractStrings(buf, minLength = 4) {
+  const parts = [];
+  let seq = '';
+  for (let i = 0; i < buf.length; i++) {
+    const b = buf[i];
+    if (b >= 0x20 && b < 0x7f) { seq += String.fromCharCode(b); }
+    else { if (seq.length >= minLength) parts.push(seq); seq = ''; }
+  }
+  if (seq.length >= minLength) parts.push(seq);
+  return parts.join('\n');
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -171,7 +183,7 @@ function parseNandSmart(baseDir) {
   const aspLog = join(baseDir, 'ASPSnapshots', 'asptool_snapshot.log');
   if (!existsSync(aspLog)) return {};
   let text;
-  try { text = execFileSync('strings', [aspLog], { timeout: 10000, encoding: 'utf-8' }); }
+  try { text = extractStrings(readFileSync(aspLog)); }
   catch { return {}; }
 
   const patterns = {

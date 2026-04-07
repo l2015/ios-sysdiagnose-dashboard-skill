@@ -1,6 +1,6 @@
 ---
 name: ios-sysdiagnose-dashboard-skill
-version: 0.2.14
+version: 0.2.15
 description: >
   Analyze iPhone sysdiagnose (.tar.gz) diagnostic archives. Extracts battery health (cycle count, capacity, trend),
   NAND flash SMART data (lifespan, writes, reads, bad blocks, PE cycles, WAF), app metrics (screen time, NAND writes, memory, network),
@@ -12,7 +12,6 @@ metadata:
   openclaw:
     emoji: "📱"
     requires:
-      bins: ["strings"]
       node: ">=18"
     install:
       - id: npm
@@ -26,7 +25,6 @@ metadata:
 ## Requirements
 
 - Node.js 18+
-- `strings` command (pre-installed on macOS and Linux)
 - `sql.js` (install via `cd {baseDir}/scripts && npm install`)
 
 ## Setup (one-time)
