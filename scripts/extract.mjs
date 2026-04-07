@@ -5,7 +5,7 @@
  * Usage: node extract.mjs <sysdiagnose_dir> [-o output.json] [--max-points 200]
  */
 
-import Database from 'better-sqlite3';
+import initSqlJs from 'sql.js';
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -21,14 +21,26 @@ function findPowerlog(baseDir) {
   return null;
 }
 
+// sql.js compatibility wrappers — same API as better-sqlite3's .all() / .get()
 function safeQuery(db, sql, params = []) {
-  try { return db.prepare(sql).all(...params); }
-  catch { return []; }
+  try {
+    const stmt = db.prepare(sql);
+    if (params.length) stmt.bind(params);
+    const rows = [];
+    while (stmt.step()) rows.push(stmt.getAsObject());
+    stmt.free();
+    return rows;
+  } catch { return []; }
 }
 
 function safeOne(db, sql, params = []) {
-  try { return db.prepare(sql).get(...params) || null; }
-  catch { return null; }
+  try {
+    const stmt = db.prepare(sql);
+    if (params.length) stmt.bind(params);
+    const row = stmt.step() ? stmt.getAsObject() : null;
+    stmt.free();
+    return row;
+  } catch { return null; }
 }
 
 // ─── Battery ────────────────────────────────────────────────────────────────
@@ -450,7 +462,7 @@ function parsePartitions(baseDir) {
 
 // ─── Main Pipeline ──────────────────────────────────────────────────────────
 
-function extractAll(baseDir, maxPoints = 200) {
+async function extractAll(baseDir, maxPoints = 200) {
   const data = {};
   data.timezone = detectTimezone(baseDir);
   data.crashes = parseCrashes(baseDir);
@@ -459,7 +471,9 @@ function extractAll(baseDir, maxPoints = 200) {
 
   const pl = findPowerlog(baseDir);
   if (pl) {
-    const db = new Database(pl, { readonly: true });
+    const SQL = await initSqlJs();
+    const buf = readFileSync(pl);
+    const db = new SQL.Database(buf);
     try {
       data.battery = parseBattery(db);
       data.battery_trend = parseBatteryTrend(db, maxPoints);
@@ -508,7 +522,7 @@ if (process.argv[1] && process.argv[1].endsWith('extract.mjs')) {
   try { statSync(baseDir); }
   catch { console.error(`Error: directory not found: ${baseDir}`); process.exit(1); }
 
-  const data = extractAll(baseDir, maxPoints);
+  const data = await extractAll(baseDir, maxPoints);
   const json = JSON.stringify(data, null, 2);
   if (outputFile) { writeFileSync(outputFile, json); console.error(`Written to ${outputFile}`); }
   else process.stdout.write(json);
