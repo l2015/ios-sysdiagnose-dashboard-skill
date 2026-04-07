@@ -343,6 +343,34 @@ function parseDeviceConfig(db) {
   };
 }
 
+function parseUsageSummary(db) {
+  const row = safeOne(db,
+    `SELECT SUM(ScreenOn) as total_screen_on_sec, SUM(ScreenOff) as total_screen_off_sec, SUM(PluggedIn) as total_plugged_sec
+     FROM PLAppTimeService_Aggregate_UsageTime`
+  );
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLAppTimeService_Aggregate_UsageTime`);
+  const bc = safeOne(db,
+    `SELECT MaximumFCC, MinimumFCC, NCCMax, NCCMin, QmaxCell0, WeightedRa, TotalOperatingTime, DailyMaxSoc, DailyMinSoc
+     FROM PLBatteryAgent_EventNone_BatteryConfig ORDER BY timestamp DESC LIMIT 1`
+  );
+  return {
+    screen_on_sec: row?.total_screen_on_sec || 0,
+    screen_off_sec: row?.total_screen_off_sec || 0,
+    plugged_sec: row?.total_plugged_sec || 0,
+    min_ts: range?.min_ts,
+    max_ts: range?.max_ts,
+    fcc_max_mah: bc?.MaximumFCC,
+    fcc_min_mah: bc?.MinimumFCC,
+    ncc_max_mah: bc?.NCCMax,
+    ncc_min_mah: bc?.NCCMin,
+    qmax_mah: bc?.QmaxCell0,
+    weighted_ra_mohm: bc?.WeightedRa,
+    total_op_hours: bc?.TotalOperatingTime,
+    daily_soc_min: bc?.DailyMinSoc,
+    daily_soc_max: bc?.DailyMaxSoc,
+  };
+}
+
 function parsePartitions(baseDir) {
   const mountFile = join(baseDir, 'mount.txt');
   if (!existsSync(mountFile)) return [];
@@ -366,6 +394,7 @@ function extractAll(baseDir, maxPoints = 200) {
       data.battery = parseBattery(db);
       data.battery_trend = parseBatteryTrend(db, maxPoints);
       data.device_config = parseDeviceConfig(db);
+      data.usage_summary = parseUsageSummary(db);
       data.app_nand_writers = parseAppNandWriters(db);
       data.app_screen_time = parseAppScreenTime(db);
       data.app_energy = parseAppEnergy(db);

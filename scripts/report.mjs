@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.7';
+const VERSION = '0.2.8';
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
@@ -270,6 +270,7 @@ function generateReport(data) {
   const apps = (appsData.items || appsData).slice(0, 8);
   const mem = (data.app_memory || []).slice(0, 8);
   const devCfg = data.device_config || {};
+  const usageSum = data.usage_summary || {};
   const trendData = data.battery_trend || { items: [] };
   const trend = trendData.items || trendData;
   const gpsData = data.gps_usage || { items: [] };
@@ -335,6 +336,19 @@ function generateReport(data) {
     [isCn ? '存储' : 'Storage', `${devCfg.disk_size_gb || '?'} GB`],
     [isCn ? '可用' : 'Free', `${devCfg.free_space_gb || '?'} GB`],
   ];
+
+  // Usage summary
+  if (usageSum.screen_on_sec > 0) {
+    const days = usageSum.max_ts && usageSum.min_ts ? Math.max(1, Math.round((usageSum.max_ts - usageSum.min_ts) / 86400)) : 1;
+    const avgOn = Math.round(usageSum.screen_on_sec / days / 3600 * 10) / 10;
+    deviceInfo.push([isCn ? '总亮屏' : 'Screen On', `${fmtSeconds(usageSum.screen_on_sec)} (~${avgOn}h/${isCn ? '天' : 'd'})`]);
+  }
+  if (usageSum.fcc_max_mah) {
+    deviceInfo.push([isCn ? '电池FCC' : 'FCC', `${usageSum.fcc_min_mah}~${usageSum.fcc_max_mah} mAh`]);
+  }
+  if (usageSum.total_op_hours) {
+    deviceInfo.push([isCn ? '累计使用' : 'Cum. Use', `${Math.round(usageSum.total_op_hours / 24)}${isCn ? '天' : 'd'}`]);
+  }
 
   const metaLines = [
     `${isCn ? '电量/崩溃日志' : 'Battery/Crash log'}: ${logRange} (${isCn ? '约' : '~'}${Math.round((trend.length ? (trend[trend.length - 1].ts - trend[0].ts) : 0) / 3600)}h)`,
