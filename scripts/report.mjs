@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.5';
+const VERSION = '0.2.6';
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
@@ -270,18 +270,20 @@ function generateReport(data) {
   const apps = (appsData.items || appsData).slice(0, 8);
   const mem = (data.app_memory || []).slice(0, 8);
   const devCfg = data.device_config || {};
-  const trend = data.battery_trend || [];
-  const gpsData = data.gps_usage || [];
+  const trendData = data.battery_trend || { items: [] };
+  const trend = trendData.items || trendData;
+  const gpsData = data.gps_usage || { items: [] };
   const gps = (gpsData.items || gpsData).slice(0, 8);
   const netData = data.network_usage || { items: [] };
   const net = (netData.items || netData).slice(0, 8);
-  const energyData = data.app_energy || [];
+  const energyData = data.app_energy || { items: [] };
   const energy = (energyData.items || energyData).slice(0, 8);
-  const cpuData = data.app_cpu || [];
+  const cpuData = data.app_cpu || { items: [] };
   const cpu = (cpuData.items || cpuData).slice(0, 8);
-  const procExitsData = data.process_exits || [];
+  const procExitsData = data.process_exits || { items: [] };
   const procExits = (procExitsData.items || procExitsData).slice(0, 8);
-  const brightTrend = data.brightness_trend || [];
+  const brightData = data.brightness_trend || { items: [] };
+  const brightTrend = brightData.items || brightData;
 
   const tz = data.timezone || { offsetMinutes: 0, label: 'UTC' };
   const tzMin = tz.offsetMinutes || 0;

@@ -66,20 +66,21 @@ function parseBattery(db) {
 }
 
 function parseBatteryTrend(db, maxPoints = 200) {
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLBatteryAgent_EventBackward_Battery`);
   const rows = safeQuery(db,
     `SELECT timestamp, Level, Voltage, Temperature, IsCharging, Amperage
      FROM PLBatteryAgent_EventBackward_Battery ORDER BY timestamp`
   );
-  if (rows.length === 0) return [];
+  if (rows.length === 0) return { items: [], min_ts: null, max_ts: null };
   const step = Math.max(1, Math.floor(rows.length / maxPoints));
-  const result = [];
+  const items = [];
   for (let i = 0; i < rows.length; i += step) {
-    result.push({
+    items.push({
       ts: rows[i].timestamp, level: rows[i].Level, voltage: rows[i].Voltage,
       temp: rows[i].Temperature, charging: !!rows[i].IsCharging, amperage: rows[i].Amperage,
     });
   }
-  return result;
+  return { items, min_ts: range?.min_ts, max_ts: range?.max_ts };
 }
 
 // ─── NAND SMART ─────────────────────────────────────────────────────────────
@@ -154,21 +155,29 @@ function parseAppScreenTime(db, limit = 25) {
 }
 
 function parseAppEnergy(db, limit = 25) {
-  return safeQuery(db,
-    `SELECT BundleID, SUM(Energy) as total_energy
-     FROM PLDuetService_Aggregate_DuetEnergyAccumulator
-     WHERE BundleID IS NOT NULL AND BundleID != ''
-     GROUP BY BundleID ORDER BY total_energy DESC LIMIT ?`, [limit]
-  ).map(r => ({ bundle_id: r.BundleID, energy_nj: r.total_energy }));
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLDuetService_Aggregate_DuetEnergyAccumulator`);
+  return {
+    items: safeQuery(db,
+      `SELECT BundleID, SUM(Energy) as total_energy
+       FROM PLDuetService_Aggregate_DuetEnergyAccumulator
+       WHERE BundleID IS NOT NULL AND BundleID != ''
+       GROUP BY BundleID ORDER BY total_energy DESC LIMIT ?`, [limit]
+    ).map(r => ({ bundle_id: r.BundleID, energy_nj: r.total_energy })),
+    min_ts: range?.min_ts, max_ts: range?.max_ts,
+  };
 }
 
 function parseAppCpu(db, limit = 20) {
-  return safeQuery(db,
-    `SELECT LaunchdName, SUM(cpu_time) as cpu, SUM(bytesread) as br, SUM(byteswritten) as bw
-     FROM PLCoalitionAgent_EventInterval_CoalitionInterval
-     WHERE LaunchdName IS NOT NULL AND LaunchdName != ''
-     GROUP BY LaunchdName ORDER BY cpu DESC LIMIT ?`, [limit]
-  ).map(r => ({ name: r.LaunchdName, cpu_sec: r.cpu || 0, bytes_read: r.br || 0, bytes_written: r.bw || 0 }));
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLCoalitionAgent_EventInterval_CoalitionInterval`);
+  return {
+    items: safeQuery(db,
+      `SELECT LaunchdName, SUM(cpu_time) as cpu, SUM(bytesread) as br, SUM(byteswritten) as bw
+       FROM PLCoalitionAgent_EventInterval_CoalitionInterval
+       WHERE LaunchdName IS NOT NULL AND LaunchdName != ''
+       GROUP BY LaunchdName ORDER BY cpu DESC LIMIT ?`, [limit]
+    ).map(r => ({ name: r.LaunchdName, cpu_sec: r.cpu || 0, bytes_read: r.br || 0, bytes_written: r.bw || 0 })),
+    min_ts: range?.min_ts, max_ts: range?.max_ts,
+  };
 }
 
 function parseAppMemory(db, limit = 15) {
@@ -181,25 +190,30 @@ function parseAppMemory(db, limit = 15) {
 }
 
 function parseBrightnessTrend(db, maxPoints = 150) {
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLDisplayAgent_EventForward_Display`);
   const rows = safeQuery(db,
     `SELECT timestamp, Brightness FROM PLDisplayAgent_EventForward_Display ORDER BY timestamp`
   );
-  if (rows.length === 0) return [];
+  if (rows.length === 0) return { items: [], min_ts: null, max_ts: null };
   const step = Math.max(1, Math.floor(rows.length / maxPoints));
-  const result = [];
+  const items = [];
   for (let i = 0; i < rows.length; i += step) {
-    result.push({ ts: rows[i].timestamp, brightness: rows[i].Brightness });
+    items.push({ ts: rows[i].timestamp, brightness: rows[i].Brightness });
   }
-  return result;
+  return { items, min_ts: range?.min_ts, max_ts: range?.max_ts };
 }
 
 function parseGpsUsage(db, limit = 15) {
-  return safeQuery(db,
-    `SELECT BundleId, COUNT(*) as uses
-     FROM PLLocationAgent_EventForward_ClientStatus
-     WHERE BundleId IS NOT NULL AND BundleId != '' AND InUseLevel > 0
-     GROUP BY BundleId ORDER BY uses DESC LIMIT ?`, [limit]
-  ).map(r => ({ bundle_id: r.BundleId, location_requests: r.uses }));
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLLocationAgent_EventForward_ClientStatus`);
+  return {
+    items: safeQuery(db,
+      `SELECT BundleId, COUNT(*) as uses
+       FROM PLLocationAgent_EventForward_ClientStatus
+       WHERE BundleId IS NOT NULL AND BundleId != '' AND InUseLevel > 0
+       GROUP BY BundleId ORDER BY uses DESC LIMIT ?`, [limit]
+    ).map(r => ({ bundle_id: r.BundleId, location_requests: r.uses })),
+    min_ts: range?.min_ts, max_ts: range?.max_ts,
+  };
 }
 
 function parseNetworkUsage(db, limit = 15) {
@@ -234,15 +248,16 @@ function parseCrashes(baseDir) {
   if (!existsSync(crashDir)) { counts.total = 0; return counts; }
 
   for (const fname of readdirSync(crashDir).sort()) {
-    if (!fname.endsWith('.ips') || fname.startsWith('._')) continue;
+    if (!fname.endsWith('.ips') || fname.startsWith('._') || fname.startsWith('stacks-')) continue;
     total++;
     const fl = fname.toLowerCase();
     if (fl.includes('jetsam')) {
       counts.jetsam++;
       // Extract app name from Jetsam crash files
       try {
-        const content = readFileSync(join(crashDir, fname), 'utf-8').slice(0, 3000);
-        const procMatch = content.match(/"procname"\s*:\s*"([^"]+)"/);
+        const content = readFileSync(join(crashDir, fname), 'utf-8').slice(0, 5000);
+        const procMatch = content.match(/"largestProcess"\s*:\s*"([^"]+)"/)
+          || content.match(/"procname"\s*:\s*"([^"]+)"/);
         if (procMatch) {
           counts.details.push({ type: 'jetsam', app: procMatch[1], file: fname });
         }
@@ -282,12 +297,16 @@ function parseAppExits(db, limit = 15) {
 }
 
 function parseProcessExits(db, limit = 15) {
-  return safeQuery(db,
-    `SELECT ProcessName, COUNT(*) as cnt, ReasonNamespace
-     FROM PLProcessMonitorAgent_EventPoint_ProcessExit
-     WHERE ProcessName IS NOT NULL AND ProcessName != ''
-     GROUP BY ProcessName ORDER BY cnt DESC LIMIT ?`, [limit]
-  ).map(r => ({ name: r.ProcessName, count: r.cnt, namespace: r.ReasonNamespace }));
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLProcessMonitorAgent_EventPoint_ProcessExit`);
+  return {
+    items: safeQuery(db,
+      `SELECT ProcessName, COUNT(*) as cnt, ReasonNamespace
+       FROM PLProcessMonitorAgent_EventPoint_ProcessExit
+       WHERE ProcessName IS NOT NULL AND ProcessName != ''
+       GROUP BY ProcessName ORDER BY cnt DESC LIMIT ?`, [limit]
+    ).map(r => ({ name: r.ProcessName, count: r.cnt, namespace: r.ReasonNamespace })),
+    min_ts: range?.min_ts, max_ts: range?.max_ts,
+  };
 }
 
 // ─── Timezone from directory name ───────────────────────────────────────────
