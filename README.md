@@ -185,7 +185,7 @@ ios-sysdiagnose-dashboard-skill/
 
 ### v0.2.0
 - 从 Python 重写为 JavaScript (Node.js)
-- 单一依赖：better-sqlite3（无需 Python 环境）
+- 单一依赖：sql.js（纯 JS，无需编译，跨平台）
 - 无需编译，直接 `node` 执行
 - 保留全部 18 个数据提取类别
 - 保留 Apple HIG 暗色主题交互式报告

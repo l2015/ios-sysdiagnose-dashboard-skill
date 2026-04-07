@@ -27,7 +27,7 @@ metadata:
 
 - Node.js 18+
 - `strings` command (pre-installed on macOS and Linux)
-- `better-sqlite3` (install via `cd {baseDir}/scripts && npm install`)
+- `sql.js` (install via `cd {baseDir}/scripts && npm install`)
 
 ## Setup (one-time)
 
