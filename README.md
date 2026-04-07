@@ -1,6 +1,6 @@
 # iPhone Sysdiagnose Analyzer
 
-> OpenClaw Skill · 版本 0.2.0
+> OpenClaw Skill · 版本 0.2.5
 
 分析 iPhone sysdiagnose 诊断归档文件，提取电池健康、闪存状态、应用使用、崩溃日志等数据，生成自包含的 HTML 报告。
 
@@ -96,6 +96,37 @@ iphone-sysdiagnose/
 ```
 
 ## 更新日志
+
+### v0.2.5
+- 报告新增：亮度趋势图、能耗排行、CPU 排行、GPS 使用、进程退出
+- 网络流量拆分 WiFi / 蜂窝数据
+- Jetsam 崩溃提取具体进程名并展示
+- 扩展 SoC / 型号映射（A14~A18 Pro）
+- 移除文档中不存在的文件引用（extract-bsdtar.mjs、server.mjs、prebuilt/）
+- 版本同步扩展至 report.mjs（5 处同步）
+
+### v0.2.4
+- 完善 handoff 打包规范，排除 data.json 保护个人信息
+- 更新版本历史记录（补齐 v0.2.1~v0.2.3）
+- 版本号四处同步（_meta.json、SKILL.md、README.md 顶部、README.md 更新日志）
+
+### v0.2.3
+- 新增脚本：extract-bsdtar.mjs（跨平台 sysdiagnose .tar.gz 提取）
+- 预编译 bsdtar 二进制（Linux x64 / macOS）
+- 支持 zstd 压缩的 sysdiagnose 包
+
+### v0.2.2
+- 新增脚本：server.mjs（原生 HTTP 服务器 + WebSocket）
+- Log Viewer：Xterm.js 终端组件，支持搜索、过滤、高亮
+- APT 助手：邮件模版、配置管理、压缩附件准备
+- 关机日志高亮、关键诊断数据段标注
+- 30 秒自动刷新机制
+
+### v0.2.1
+- Web UI 版本：index.html + style.css + script.js + app.js
+- Chart.js 交互式图表
+- KaTeX 数学公式渲染
+- 支持实时分析（非仅静态报告）
 
 ### v0.2.0
 - 从 Python 重写为 JavaScript (Node.js)

@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.4';
+const VERSION = '0.2.5';
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
@@ -271,8 +271,17 @@ function generateReport(data) {
   const mem = (data.app_memory || []).slice(0, 8);
   const devCfg = data.device_config || {};
   const trend = data.battery_trend || [];
-  const gps = (data.gps_usage || []).slice(0, 8);
-  const net = (data.network_usage || []).slice(0, 8);
+  const gpsData = data.gps_usage || [];
+  const gps = (gpsData.items || gpsData).slice(0, 8);
+  const netData = data.network_usage || { items: [] };
+  const net = (netData.items || netData).slice(0, 8);
+  const energyData = data.app_energy || [];
+  const energy = (energyData.items || energyData).slice(0, 8);
+  const cpuData = data.app_cpu || [];
+  const cpu = (cpuData.items || cpuData).slice(0, 8);
+  const procExitsData = data.process_exits || [];
+  const procExits = (procExitsData.items || procExitsData).slice(0, 8);
+  const brightTrend = data.brightness_trend || [];
 
   const tz = data.timezone || { offsetMinutes: 0, label: 'UTC' };
   const tzMin = tz.offsetMinutes || 0;
@@ -304,8 +313,17 @@ function generateReport(data) {
   if (trend.length) logRange = `${fmtDatetimeFull(trend[0].ts, tzMin)} — ${fmtDatetimeFull(trend[trend.length - 1].ts, tzMin)}`;
 
   const soc = devCfg.soc || '';
-  const SOC_MAP = { 't8110': 'A15 Bionic' };
-  const MODEL_MAP = { 't8110': 'iPhone 13 Pro' };
+  const SOC_MAP = {
+    't8101': 'A14 Bionic', 't8103': 'M1', 't6000': 'M1 Pro', 't6001': 'M1 Max', 't6002': 'M1 Ultra',
+    't8110': 'A15 Bionic', 't8112': 'A16 Bionic',
+    't8120': 'A17 Pro', 't8130': 'M4',
+    't6030': 'A18', 't6031': 'A18 Pro',
+  };
+  const MODEL_MAP = {
+    't8101': 'iPhone 12', 't8110': 'iPhone 13 Pro',
+    't8112': 'iPhone 14 Pro', 't8120': 'iPhone 15 Pro',
+    't6030': 'iPhone 16', 't6031': 'iPhone 16 Pro',
+  };
   const model = MODEL_MAP[soc] || soc;
   const socName = SOC_MAP[soc] || soc;
 
@@ -412,7 +430,24 @@ function generateReport(data) {
 
   let netRows = '';
   for (const n of net) {
-    netRows += `<tr><td>${shortName(n.name)}</td><td>${fmtBytes(n.wifi_in_bytes)}</td><td>${fmtBytes(n.wifi_out_bytes)}</td></tr>`;
+    netRows += `<tr><td>${shortName(n.name)}</td><td>${fmtBytes(n.wifi_in_bytes + n.wifi_out_bytes)}</td><td>${fmtBytes(n.cellular_in_bytes + n.cellular_out_bytes)}</td></tr>`;
+  }
+
+  // ─── Brightness Chart ───
+  let brightChart = '';
+  if (brightTrend.length >= 2) {
+    const svg = interactiveChartSvg(brightTrend, 'brightness', { height: 160, color: '#ff9f0a', unit: '', chartId: 'bright', tzOffsetMinutes: tzMin });
+    brightChart = `<div class="card-grid" style="margin-top:10px"><div class="card full"><div class="card-title">${isCn ? '亮度趋势' : 'Brightness Trend'}</div>${svg}</div></div>`;
+  }
+
+  // ─── GPS & Process Exits ───
+  let gpsRows = '';
+  for (const g of gps) {
+    gpsRows += `<tr><td>${shortName(g.bundle_id)}</td><td>${g.location_requests}</td></tr>`;
+  }
+  let procRows = '';
+  for (const p of procExits) {
+    procRows += `<tr><td>${shortName(p.name)}</td><td>${p.count}</td><td style="color:var(--sec)">${p.namespace || ''}</td></tr>`;
   }
 
   const na = isCn ? '暂无数据' : 'N/A';
@@ -420,12 +455,25 @@ function generateReport(data) {
 
   // ─── Crash Card ───
   const jetsam = crashes.jetsam || 0;
-  // Crash detail lines for disk write exceedance
+  // Crash detail lines for disk write exceedance and Jetsam
   let crashDetailStr = '';
   if (crashDetails.length) {
-    crashDetailStr = crashDetails.map(d =>
-      `<div class="stat-row"><span class="k">${shortName(d.app)}</span><span class="v">${isCn ? '磁盘写入超限' : 'Disk write exceed'}</span></div>`
-    ).join('');
+    // Group Jetsam details by app
+    const jetsamApps = {};
+    const diskWriteApps = [];
+    for (const d of crashDetails) {
+      if (d.type === 'jetsam') {
+        jetsamApps[d.app] = (jetsamApps[d.app] || 0) + 1;
+      } else if (d.type === 'disk_writes') {
+        diskWriteApps.push(d);
+      }
+    }
+    for (const [app, cnt] of Object.entries(jetsamApps).sort((a, b) => b[1] - a[1]).slice(0, 5)) {
+      crashDetailStr += `<div class="stat-row"><span class="k">${shortName(app)}</span><span class="v" style="color:#ff9f0a">${cnt}× Jetsam</span></div>`;
+    }
+    for (const d of diskWriteApps.slice(0, 3)) {
+      crashDetailStr += `<div class="stat-row"><span class="k">${shortName(d.app)}</span><span class="v">${isCn ? '磁盘写入超限' : 'Disk write exceed'}</span></div>`;
+    }
   }
 
   const crashCard = `<div class="card"><div class="card-title">${isCn ? '崩溃分析（近 48 小时）' : 'Crash Analysis (48h)'}</div>
@@ -484,8 +532,21 @@ ${appExitCard || `<div class="card"><div class="card-title">${isCn ? 'Jetsam 内
 <div class="card"><div class="card-title">${isCn ? '内存峰值' : 'Peak Memory'}</div>
 <div class="stat-sub" style="margin-bottom:8px">${isCn ? '日志期间观测到的峰值' : 'Peak observed during logging'}</div>
 <table><thead><tr><th>${al}</th><th>${isCn ? '峰值' : 'Peak'}</th></tr></thead><tbody>${memRows || `<tr><td colspan=2 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
-<div class="card"><div class="card-title">${isCn ? '网络流量（累计）' : 'Network (Cumulative)'}</div>
-<table><thead><tr><th>${al}</th><th>↓</th><th>↑</th></tr></thead><tbody>${netRows || `<tr><td colspan=3 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
+<div class="card"><div class="card-title">${isCn ? '网络流量' : 'Network'} ${rangeLabel(netData.min_ts, netData.max_ts, tzMin, isCn)}</div>
+<table><thead><tr><th>${al}</th><th>WiFi</th><th>${isCn ? '蜂窝' : 'Cell'}</th></tr></thead><tbody>${netRows || `<tr><td colspan=3 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
+</div>
+<div class="card-grid" style="margin-top:10px">
+<div class="card"><div class="card-title">${isCn ? '能耗排行' : 'Energy Usage'}</div>
+<table><thead><tr><th>${al}</th><th>${isCn ? '能耗' : 'Energy'}</th></tr></thead><tbody>${energy.length ? energy.map(e => `<tr><td>${shortName(e.bundle_id)}</td><td>${((e.energy_nj || 0) / 1000).toFixed(1)} mWh</td></tr>`).join('') : `<tr><td colspan=2 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
+<div class="card"><div class="card-title">${isCn ? 'CPU 排行' : 'CPU Usage'}</div>
+<table><thead><tr><th>${al}</th><th>${isCn ? 'CPU时间' : 'CPU'}</th></tr></thead><tbody>${cpu.length ? cpu.map(c => `<tr><td>${shortName(c.name)}</td><td>${fmtSeconds(c.cpu_sec)}</td></tr>`).join('') : `<tr><td colspan=2 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
+</div>
+${brightChart}
+<div class="card-grid" style="margin-top:10px">
+<div class="card"><div class="card-title">${isCn ? 'GPS 使用' : 'Location Usage'}</div>
+<table><thead><tr><th>${al}</th><th>${isCn ? '定位次数' : 'Requests'}</th></tr></thead><tbody>${gpsRows || `<tr><td colspan=2 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
+<div class="card"><div class="card-title">${isCn ? '进程退出' : 'Process Exits'}</div>
+<table><thead><tr><th>${al}</th><th>${isCn ? '次数' : 'Count'}</th><th>${isCn ? '原因' : 'Reason'}</th></tr></thead><tbody>${procRows || `<tr><td colspan=3 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
 </div>
 <div class="footer">iPhone Sysdiagnose Analyzer v${VERSION} · ${generatedAt} (${tzLabel})</div>
 </div>

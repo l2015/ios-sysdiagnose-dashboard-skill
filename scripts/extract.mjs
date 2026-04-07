@@ -203,12 +203,26 @@ function parseGpsUsage(db, limit = 15) {
 }
 
 function parseNetworkUsage(db, limit = 15) {
-  return safeQuery(db,
-    `SELECT BundleName, SUM(WifiIn) as wi, SUM(WifiOut) as wo
-     FROM PLProcessNetworkAgent_EventInterval_UsageDiff
-     WHERE BundleName IS NOT NULL AND BundleName != ''
-     GROUP BY BundleName ORDER BY (IFNULL(wi,0)+IFNULL(wo,0)) DESC LIMIT ?`, [limit]
-  ).map(r => ({ name: r.BundleName, wifi_in_bytes: r.wi || 0, wifi_out_bytes: r.wo || 0 }));
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLProcessNetworkAgent_EventInterval_UsageDiff`);
+  // Check if Cellular columns exist
+  const cols = safeQuery(db, `PRAGMA table_info(PLProcessNetworkAgent_EventInterval_UsageDiff)`).map(c => c.name);
+  const hasCell = cols.includes('CellularIn') && cols.includes('CellularOut');
+  const cellSql = hasCell ? ', SUM(CellularIn) as ci, SUM(CellularOut) as co' : '';
+  const orderSql = hasCell ? '(IFNULL(wi,0)+IFNULL(wo,0)+IFNULL(ci,0)+IFNULL(co,0))' : '(IFNULL(wi,0)+IFNULL(wo,0))';
+  return {
+    items: safeQuery(db,
+      `SELECT BundleName, SUM(WifiIn) as wi, SUM(WifiOut) as wo${cellSql}
+       FROM PLProcessNetworkAgent_EventInterval_UsageDiff
+       WHERE BundleName IS NOT NULL AND BundleName != ''
+       GROUP BY BundleName ORDER BY ${orderSql} DESC LIMIT ?`, [limit]
+    ).map(r => ({
+      name: r.BundleName,
+      wifi_in_bytes: r.wi || 0, wifi_out_bytes: r.wo || 0,
+      cellular_in_bytes: r.ci || 0, cellular_out_bytes: r.co || 0,
+    })),
+    min_ts: range?.min_ts,
+    max_ts: range?.max_ts,
+  };
 }
 
 // ─── Crashes ────────────────────────────────────────────────────────────────
@@ -223,7 +237,17 @@ function parseCrashes(baseDir) {
     if (!fname.endsWith('.ips') || fname.startsWith('._')) continue;
     total++;
     const fl = fname.toLowerCase();
-    if (fl.includes('jetsam')) counts.jetsam++;
+    if (fl.includes('jetsam')) {
+      counts.jetsam++;
+      // Extract app name from Jetsam crash files
+      try {
+        const content = readFileSync(join(crashDir, fname), 'utf-8').slice(0, 3000);
+        const procMatch = content.match(/"procname"\s*:\s*"([^"]+)"/);
+        if (procMatch) {
+          counts.details.push({ type: 'jetsam', app: procMatch[1], file: fname });
+        }
+      } catch {}
+    }
     else if (fl.includes('safari') || fl.includes('excuserfault_mobilesafari')) counts.safari++;
     else if (fl.includes('diskwrites') || fl.includes('disk_writes')) {
       counts.disk_writes++;
