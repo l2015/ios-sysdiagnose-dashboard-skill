@@ -1,6 +1,6 @@
 # iPhone Sysdiagnose Analyzer
 
-> OpenClaw Skill · 版本 0.2.6
+> OpenClaw Skill · 版本 0.2.7
 
 分析 iPhone sysdiagnose 诊断归档文件，提取电池健康、闪存状态、应用使用、崩溃日志等数据，生成自包含的 HTML 报告。
 
@@ -96,6 +96,10 @@ iphone-sysdiagnose/
 ```
 
 ## 更新日志
+
+### v0.2.7
+- 修复网络蜂窝列名（CellularIn → CellIn），蜂窝数据正常显示
+- App 退出原因码扩展（10: 非法内存访问, 15: 资源耗尽）
 
 ### v0.2.6
 - 修复 Jetsam 进程名正则（"procname" → "largestProcess"），杀后台详情正常提取

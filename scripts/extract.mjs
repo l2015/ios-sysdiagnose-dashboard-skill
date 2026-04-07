@@ -218,10 +218,10 @@ function parseGpsUsage(db, limit = 15) {
 
 function parseNetworkUsage(db, limit = 15) {
   const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLProcessNetworkAgent_EventInterval_UsageDiff`);
-  // Check if Cellular columns exist
+  // Check if Cellular columns exist (actual names: CellIn/CellOut)
   const cols = safeQuery(db, `PRAGMA table_info(PLProcessNetworkAgent_EventInterval_UsageDiff)`).map(c => c.name);
-  const hasCell = cols.includes('CellularIn') && cols.includes('CellularOut');
-  const cellSql = hasCell ? ', SUM(CellularIn) as ci, SUM(CellularOut) as co' : '';
+  const hasCell = cols.includes('CellIn') && cols.includes('CellOut');
+  const cellSql = hasCell ? ', SUM(CellIn) as ci, SUM(CellOut) as co' : '';
   const orderSql = hasCell ? '(IFNULL(wi,0)+IFNULL(wo,0)+IFNULL(ci,0)+IFNULL(co,0))' : '(IFNULL(wi,0)+IFNULL(wo,0))';
   return {
     items: safeQuery(db,
@@ -279,7 +279,11 @@ function parseCrashes(baseDir) {
 // ─── App Exits ──────────────────────────────────────────────────────────────
 
 function parseAppExits(db, limit = 15) {
-  const reasonMap = { 0: '正常退出', 1: 'Jetsam内存回收', 2: '看门狗超时', 3: '崩溃' };
+  const reasonMap = {
+    0: '正常退出', 1: 'Jetsam内存回收', 2: '看门狗超时', 3: '崩溃',
+    5: '挂起超时', 8: '后台任务超时', 10: '非法内存访问',
+    15: '资源耗尽', 16: '看门狗违规',
+  };
   const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLApplicationAgent_EventPoint_ApplicationExitReason`);
   return {
     items: safeQuery(db,

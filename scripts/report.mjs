@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.6';
+const VERSION = '0.2.7';
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
