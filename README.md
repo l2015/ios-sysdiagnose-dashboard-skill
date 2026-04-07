@@ -1,46 +1,45 @@
 # iPhone Sysdiagnose Analyzer
 
+> OpenClaw Skill · 版本 0.1.4
+
 分析 iPhone sysdiagnose 诊断归档文件，提取电池健康、闪存状态、应用使用、崩溃日志等数据，生成自包含的 HTML 报告。
 
 ## 功能
 
 - **电池**: 健康百分比、充电循环、容量衰减、温度趋势
 - **NAND 闪存**: 剩余寿命、读写量（主机/闪存双视角）、PE 擦写次数、坏块、写入放大
-- **应用排行**: 存储写入量、亮屏时间、内存峰值、网络流量、GPS 使用
-- **崩溃日志**: Jetsam 内存压力、Safari 崩溃、磁盘写入超限、CPU 资源事件
+- **应用排行**: 存储写入量、亮屏时间、内存峰值、网络流量
+- **崩溃分析**: Jetsam 内存回收、Safari 崩溃、磁盘写入超限、CPU 资源事件
+- **应用退出**: Jetsam 内存回收排行（哪个 App 被系统杀得最多）
 - **设备信息**: 型号识别、SoC、磁盘容量、基带版本
 
-输出单个自包含 HTML 文件，Apple HIG 风格深色主题，支持移动端响应式布局。
+## 使用方式
 
-## 快速开始
+### 作为 OpenClaw Skill
+
+安装后，用户只需上传 sysdiagnose 文件，AI 自动完成：
+
+1. 解压归档
+2. 提取数据（PowerLog + ASP SMART + 崩溃日志）
+3. 生成 HTML 报告
+
+无需用户手动操作任何命令行。
+
+### 手动使用
 
 ```bash
-# 安装依赖
-pip install sysdiagnose  # SAF 分析框架
+# 提取数据（SAF 可选，不装也能提取崩溃日志和 PowerLog 数据）
+python3 scripts/extract.py /path/to/sysdiagnose_dir -o data.json
 
-# 1. 解析 sysdiagnose 归档
-sysdiag create your_sysdiagnose.tar.gz
-CASE_ID=$(sysdiag cases | tail -1 | awk '{print $1}')
-sysdiag -c "$CASE_ID" parse all
-
-# 2. 解压原始数据
-mkdir -p /tmp/sd && tar xzf your_sysdiagnose.tar.gz -C /tmp/sd
-BASE=$(find /tmp/sd -maxdepth 1 -type d -name "sysdiagnose_*" | head -1)
-
-# 3. 提取结构化数据
-python3 scripts/extract.py "$BASE" "cases/$CASE_ID/parsed_data" -o data.json
-
-# 4. 生成报告
+# 生成报告
 python3 scripts/report.py data.json -o report.html
 ```
-
-浏览器打开 `report.html` 即可查看。
 
 ## 环境要求
 
 - Python 3.10+
-- [SAF (Sysdiagnose Analysis Framework)](https://github.com/EC-DIGIT-CSIRC/sysdiagnose)
 - `strings` 命令（macOS / Linux 自带）
+- [SAF](https://github.com/EC-DIGIT-CSIRC/sysdiagnose)（可选，提供额外解析能力）
 
 ## 项目结构
 
@@ -51,61 +50,53 @@ iphone-sysdiagnose/
 ├── pyproject.toml           # Python 打包配置
 ├── LICENSE                  # MIT
 ├── scripts/
-│   ├── extract.py           # 数据提取（PowerLog + ASP + 崩溃日志）
-│   └── report.py            # HTML 报告生成器
+│   ├── __init__.py
+│   ├── extract.py           # 数据提取
+│   └── report.py            # HTML 报告生成
 ├── references/
 │   └── features.md          # 完整可分析功能清单
 └── tests/
     └── test_extract.py      # 基础测试
 ```
 
-## CLI 参考
+## 更新日志
 
-### extract.py
+### v0.1.4
+- 崩溃分析：直接解析 `.ips` 文件，不再依赖 SAF
+- 新增 Jetsam 内存回收排行（PowerLog 应用退出原因表）
+- 术语说明全部重写，通俗化（WAF 用擦黑笔字类比、PE 解释剩余次数）
+- 修复 `short_name` 前缀匹配导致 PassbookUIService 显示为 Safari
 
-```
-usage: extract.py [-h] [--max-points N] [-o OUTPUT] base_dir parsed_dir
+### v0.1.3
+- 报告头部增加日期含义标注（日志记录 vs 报告生成 vs 分析器版本）
+- 电池详情补充容量损耗和标称容量，对齐闪存卡片行数
+- 运行时间改为显示"累计通电/开机次数"，明确不是连续不关机
+- CSS hover 提示改为 JS 弹窗，支持移动端 tap
 
-参数:
-  base_dir              解压后的 sysdiagnose 目录
-  parsed_dir            SAF 解析数据目录
+### v0.1.2
+- 修复时间戳类型错误（Unix 不是 CFAbsoluteTime）
+- 闪存改为显示剩余健康百分比
+- 增加闪存实际读写量（区别于主机读写）
+- 移除屏幕亮度图表
+- 响应式布局（768px / 480px 断点）
 
-选项:
-  --max-points N        时间序列最大数据点数（默认 200）
-  -o, --output FILE     输出文件（默认 stdout）
-```
+### v0.1.1
+- 报告完全重写，Apple HIG 深色主题
+- 中文自动检测（根据 App bundle ID）
+- App 名称映射（淘宝、抖音、微信等）
+- 电量/亮度曲线增加时间轴和 hover 交互
+- 内存单位修正（bytes 而非 KB）
 
-### report.py
-
-```
-usage: report.py [-h] [-o OUTPUT] input
-
-参数:
-  input                 extract.py 输出的 JSON 文件（或 - 表示 stdin）
-
-选项:
-  -o, --output FILE     输出 HTML 文件（默认 stdout）
-```
-
-## 支持设备
-
-已在 iOS 15-26 的 sysdiagnose 归档上测试。支持任何包含 PowerLog 数据的 iPhone / iPad 归档。
-
-型号映射示例：
-- iPhone14,2 → iPhone 13 Pro
-- iPhone14,5 → iPhone 13
-- iPhone15,2 → iPhone 14 Pro
-- iPhone16,1 → iPhone 15 Pro
+### v0.1.0
+- 初始版本：18 个数据提取类别
+- 基础 HTML 报告
+- CLI 支持
 
 ## 已知限制
 
-- NAND 供应商/型号在用户级 sysdiagnose 中不可见（仅 Apple AST2 可见）
-- PowerLog 表结构因 iOS 版本不同可能有差异（部分表可能为空）
-- 报告文字根据设备语言自动切换（中文/英文）
-
-## 开发
-
-参考 `references/features.md` 查看完整的 PowerLog 表和待实现功能。欢迎 PR。
+- NAND 供应商/型号在用户级 sysdiagnose 中不可见
+- PowerLog 表结构因 iOS 版本不同可能有差异
+- 累计数据（通电时间、Jetsam 次数等）自上次"抹掉所有内容"起算
 
 ## 许可证
 

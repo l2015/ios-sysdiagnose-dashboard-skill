@@ -496,13 +496,13 @@ def generate_report(data: dict) -> str:
 
     crash_card = f'''<div class="card"><div class="card-title">{"崩溃分析（日志文件）" if is_cn else "Crash Analysis (Log Files)"}</div>
     <div class="stat-big" style="color:{"#ff3b30" if total_crashes > 20 else "#ff9f0a" if total_crashes > 5 else "var(--sec)"}">{total_crashes}</div>
-    <div class="stat-sub">{"48小时内" if is_cn else "In 48h"}</div>
+    <div class="stat-sub">{"48小时内诊断日志中的崩溃/异常事件" if is_cn else "Crash/exception events in 48h diagnostic logs"}</div>
     <div style="margin-top:8px">
-    <div class="stat-row"><span class="k">Jetsam {"内存回收" if is_cn else "memory kill"}</span><span class="v" style="color:{"#ff3b30" if jetsam > 10 else "inherit"}">{jetsam}</span></div>
-    <div class="stat-row"><span class="k">Safari {"崩溃" if is_cn else "crash"}</span><span class="v">{safari_crashes}</span></div>
-    <div class="stat-row"><span class="k">{"磁盘写入超限" if is_cn else "Disk write exceed"}</span><span class="v">{disk_w}</span></div>
-    <div class="stat-row"><span class="k">CPU {"超限" if is_cn else "resource"}</span><span class="v">{cpu_r}</span></div>
-    <div class="stat-row"><span class="k">SFA {"安全事件" if is_cn else "security"}</span><span class="v">{sfa}</span></div>
+    <div class="stat-row"><span class="k">Jetsam {"内存回收" if is_cn else "memory kill"}{T("系统内存不足时，iOS按优先级强制结束低优先级进程来释放内存。频繁出现说明内存压力大" if is_cn else "iOS kills low-priority processes when memory is low. Frequent kills indicate memory pressure")}</span><span class="v" style="color:{"#ff3b30" if jetsam > 10 else "inherit"}">{jetsam}</span></div>
+    <div class="stat-row"><span class="k">Safari {"崩溃" if is_cn else "crash"}{T("Safari浏览器异常退出，通常是网页JavaScript或内存问题导致" if is_cn else "Safari abnormal exit, usually caused by webpage JS or memory issues")}</span><span class="v">{safari_crashes}</span></div>
+    <div class="stat-row"><span class="k">{"磁盘写入超限" if is_cn else "Disk write exceed"}{T("App在短时间内写入过多数据，被系统限制。常见于下载、缓存类操作" if is_cn else "App wrote too much data too quickly, system throttled it")}</span><span class="v">{disk_w}</span></div>
+    <div class="stat-row"><span class="k">CPU {"超限" if is_cn else "resource"}{T("进程持续高CPU占用被系统检测并记录" if is_cn else "Process sustained high CPU usage detected by system")}</span><span class="v">{cpu_r}</span></div>
+    <div class="stat-row"><span class="k">SFA {"安全事件" if is_cn else "security"}{T("Apple安全框架事件，通常与钥匙串、CloudKit同步相关，一般无影响" if is_cn else "Apple security framework events, usually keychain/CloudKit related, typically harmless")}</span><span class="v">{sfa}</span></div>
     <div class="stat-row"><span class="k">{"其他" if is_cn else "Other"}</span><span class="v">{crashes.get("other", 0)}</span></div>
     {crash_detail_str}
     </div></div>'''
@@ -514,9 +514,9 @@ def generate_report(data: dict) -> str:
         rows = ""
         for e in jetsam_exits:
             rows += f'<tr><td>{short_name(e["bundle_id"])}</td><td style="font-weight:600;color:#ff9f0a">{e["count"]}</td></tr>'
-        app_exit_card = f'''<div class="card"><div class="card-title">{"Jetsam 内存回收排行" if is_cn else "Jetsam Memory Kills"}</div>
-        <div class="stat-sub" style="margin-bottom:8px">{"系统因内存不足强制回收的次数（累计）" if is_cn else "Times system killed app to reclaim memory (cumulative)"}</div>
-        <table><thead><tr><th>{al}</th><th>{"次数" if is_cn else "Count"}</th></tr></thead><tbody>{rows}</tbody></table></div>'''
+        app_exit_card = f'''<div class="card"><div class="card-title">{"Jetsam 内存回收排行（累计）" if is_cn else "Jetsam Memory Kills (Cumulative)"}</div>
+        <div class="stat-sub" style="margin-bottom:8px">{"系统因内存不足强制结束应用的次数。排名靠前的应用可能占用内存较多或后台驻留频繁" if is_cn else "Times system killed app to reclaim memory. Top apps may use more memory or stay in background frequently"}</div>
+        <table><thead><tr><th>{al}</th><th>{"被杀次数" if is_cn else "Kills"}</th></tr></thead><tbody>{rows}</tbody></table></div>'''
 
 
     html = f'''<!DOCTYPE html>

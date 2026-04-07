@@ -1,13 +1,13 @@
 ---
 name: iphone-sysdiagnose
-version: 0.1.0
+version: 0.1.4
 description: >
   Analyze iPhone sysdiagnose (.tar.gz) diagnostic archives. Extracts battery health (cycle count, capacity, trend),
-  NAND flash SMART data (lifespan, writes, reads, bad blocks), app metrics (screen time, energy, NAND writes, memory, GPS),
-  crash logs (Jetsam, Safari, disk writes, CPU), VPN/network extensions, and device info.
-  Generates a self-contained bento-grid HTML report with SVG sparklines.
+  NAND flash SMART data (lifespan, writes, reads, bad blocks, PE cycles, WAF), app metrics (screen time, NAND writes, memory, network),
+  crash logs (Jetsam, Safari, disk writes, CPU), app exit analysis (Jetsam kill ranking), and device info.
+  Generates a self-contained Apple HIG-style dark theme HTML report with interactive charts and Chinese/English i18n.
   Use when: user provides a sysdiagnose file, asks about iPhone diagnostics, battery health, storage analysis,
-  app crash analysis, or wants an iOS device health report.
+  app crash analysis, memory pressure, or wants an iOS device health report.
 ---
 
 # iPhone Sysdiagnose Analyzer
@@ -15,26 +15,29 @@ description: >
 ## Requirements
 
 - Python 3.10+
-- SAF framework: `pip install sysdiagnose`
-- `strings` (from util-linux, pre-installed on most systems)
+- `strings` command (pre-installed on macOS and Linux)
+- SAF framework (`pip install sysdiagnose`) — optional, enhances analysis
 
 ## Pipeline
 
-### 1. Extract archive and parse with SAF
+### 1. Extract archive
 
 ```bash
 WORK=$(mktemp -d)
 tar xzf "<input>.tar.gz" -C "$WORK"
 BASE=$(find "$WORK" -maxdepth 1 -type d -name "sysdiagnose_*" | head -1)
-
-sysdiag create "<input>.tar.gz"
-CASE_ID=$(sysdiag cases | tail -1 | awk '{print $1}')
-sysdiag -c "$CASE_ID" parse all
 ```
 
 ### 2. Extract structured data
 
 ```bash
+# Without SAF (crashes + PowerLog + ASP SMART)
+python3 scripts/extract.py "$BASE" -o data.json
+
+# With SAF (adds VPN, system info)
+sysdiag create "<input>.tar.gz"
+CASE_ID=$(sysdiag cases | tail -1 | awk '{print $1}')
+sysdiag -c "$CASE_ID" parse all
 python3 scripts/extract.py "$BASE" "cases/$CASE_ID/parsed_data" -o data.json
 ```
 
@@ -54,16 +57,17 @@ rm -rf "$WORK"
 
 See `references/features.md` for full feature list. Key categories:
 
-- **Battery**: health %, cycles, capacity, trend chart, temperature
-- **NAND**: lifespan %, read/write TB, PE cycles, bad blocks, power-on hours
-- **Apps**: NAND writers, screen time, energy, CPU, memory, GPS, network
-- **Crashes**: Jetsam, Safari, disk writes, CPU resource, SFA
-- **Network**: VPN extensions, WiFi diagnostics
-- **Device**: model, SoC, disk, partitions
+- **Battery**: health %, cycles, capacity, trend chart, temperature, voltage
+- **NAND**: remaining lifespan %, host read/write, NAND read/write, PE cycles, bad blocks, WAF
+- **Apps**: NAND writers, screen time, energy, CPU, memory, network
+- **Crashes**: Jetsam events, Safari crashes, disk write exceedance, CPU resource, SFA security
+- **App Exits**: Jetsam memory kill ranking per app
+- **Device**: model, SoC, disk, partitions, baseband
 
 ## Notes
 
-- Bundle IDs are converted to short names automatically (e.g., `com.apple.mobilesafari` -> `mobilesafari`)
-- Time series are downsampled to `--max-points` (default 200) for manageable JSON size
+- App names auto-translated for Chinese devices (e.g., `com.taobao.fleamarket` → 淘宝)
+- Language auto-detected from app bundle IDs
+- Report shows analyzer version, log range, and generation timestamp
 - NAND vendor/model not available in customer sysdiagnose (Apple internal only)
-- iPhone model mapping: iPhone14,2 = iPhone 13 Pro, iPhone15,2 = iPhone 14 Pro, etc.
+- Cumulative stats (uptime, Jetsam kills) are since last "Erase All Content"
