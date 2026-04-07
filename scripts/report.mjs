@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.8';
+const VERSION = '0.2.13';
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
@@ -127,7 +127,8 @@ function rangeLabel(minTs, maxTs, tzMin, isCn) {
 
 function interactiveChartSvg(points, valueKey, opts = {}) {
   const { width = 1000, height = 200, color = '#34c759', unit = '%',
-    yMax = null, warnLine = null, chartId = 'chart', tzOffsetMinutes = 0 } = opts;
+    yMax = null, warnLine = null, chartId = 'chart', tzOffsetMinutes = 0,
+    bands = null } = opts;
 
   if (points.length < 2) return '<div class="chart-empty">数据不足</div>';
 
@@ -140,6 +141,17 @@ function interactiveChartSvg(points, valueKey, opts = {}) {
 
   const tx = ts => pl + (ts - t0) / tr * cw;
   const ty = val => pt + ch - val / maxVal * ch;
+
+  // Screen-on bands
+  let bandsSvg = '';
+  if (bands && bands.length) {
+    for (const b of bands) {
+      const x1 = Math.max(pl, tx(b.start)), x2 = Math.min(pl + cw, tx(b.end));
+      if (x2 > x1 + 1) {
+        bandsSvg += `<rect x="${x1.toFixed(1)}" y="${pt}" width="${(x2 - x1).toFixed(1)}" height="${ch}" fill="${b.color || '#34c759'}" opacity="${b.opacity || 0.08}"/>`;
+      }
+    }
+  }
 
   // Line path
   const pathParts = points.map((p, i) =>
@@ -180,7 +192,7 @@ function interactiveChartSvg(points, valueKey, opts = {}) {
 
   return `<svg viewBox="0 0 ${width} ${height}" style="width:100%;height:${height}px" xmlns="http://www.w3.org/2000/svg" class="chart-svg" id="${chartId}">
 <defs><linearGradient id="g_${chartId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${color}" stop-opacity=".12"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
-${timeSvg}${ySvg}
+${bandsSvg}${timeSvg}${ySvg}
 <line x1="${pl}" y1="${pt}" x2="${pl}" y2="${pt + ch}" stroke="#3a3a3c" stroke-width="1"/>
 <line x1="${pl}" y1="${pt + ch}" x2="${pl + cw}" y2="${pt + ch}" stroke="#3a3a3c" stroke-width="1"/>
 <path d="${fillPath}" fill="url(#g_${chartId})"/>
@@ -192,6 +204,51 @@ ${warnSvg}${hover}
 <text id="ttv_${chartId}" x="0" y="0" fill="#fff" font-size="15" font-weight="700" text-anchor="middle"></text>
 <text id="ttt_${chartId}" x="0" y="0" fill="#8e8e93" font-size="11" text-anchor="middle"></text>
 </g></svg>`;
+}
+
+// ─── Donut Chart ────────────────────────────────────────────────────────────
+
+function donutChartSvg(items, opts = {}) {
+  const { size = 200, labelKey = 'label', valueKey = 'value', chartId = 'donut' } = opts;
+  const cx = size / 2, cy = size / 2, r = size / 2 - 8, ir = r * 0.62;
+  const total = items.reduce((s, i) => s + (i[valueKey] || 0), 0);
+  if (!total) return '';
+  const PALETTE = ['#30d158','#ff9f0a','#5e5ce6','#64d2ff','#bf5af2','#ff375f','#ffd60a','#ff6b35','#a2845e','#636366'];
+  let angle = -Math.PI / 2;
+  const arcs = [];
+  const legend = [];
+  items.forEach((item, i) => {
+    const val = item[valueKey] || 0;
+    const pct = val / total;
+    const sweep = pct * Math.PI * 2;
+    const a1 = angle, a2 = angle + sweep;
+    const color = PALETTE[i % PALETTE.length];
+    const largeArc = sweep > Math.PI ? 1 : 0;
+    const gap = 0.02; // small gap between segments
+    const a1g = a1 + gap, a2g = a2 - gap;
+    if (a2g <= a1g) { angle = a2; return; }
+    const x1o = cx + r * Math.cos(a1g), y1o = cy + r * Math.sin(a1g);
+    const x2o = cx + r * Math.cos(a2g), y2o = cy + r * Math.sin(a2g);
+    const x1i = cx + ir * Math.cos(a2g), y1i = cy + ir * Math.sin(a2g);
+    const x2i = cx + ir * Math.cos(a1g), y2i = cy + ir * Math.sin(a1g);
+    const la = (a2g - a1g) > Math.PI ? 1 : 0;
+    arcs.push(`<path d="M${x1o.toFixed(1)},${y1o.toFixed(1)} A${r},${r} 0 ${la},1 ${x2o.toFixed(1)},${y2o.toFixed(1)} L${x1i.toFixed(1)},${y1i.toFixed(1)} A${ir},${ir} 0 ${la},0 ${x2i.toFixed(1)},${y2i.toFixed(1)} Z" fill="${color}" opacity=".85"/>`);
+    legend.push({ label: item[labelKey], pct: (pct * 100).toFixed(1), color, val: fmtBytes(val) });
+    angle = a2;
+  });
+  // Center text: top app name + percentage
+  const topApp = legend[0];
+  const legendHtml = legend.map(l =>
+    `<div style="display:flex;align-items:center;gap:6px;font-size:.78em;line-height:1.8"><span style="width:10px;height:10px;border-radius:3px;background:${l.color};flex-shrink:0"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.label}</span><span style="color:var(--ter);font-size:.9em">${l.val}</span><span style="font-weight:600;width:42px;text-align:right">${l.pct}%</span></div>`
+  ).join('');
+  return `<div style="display:flex;gap:20px;align-items:center">
+<div style="position:relative;width:${size}px;height:${size}px;flex-shrink:0">
+<svg viewBox="0 0 ${size} ${size}" style="width:100%;height:100%" xmlns="http://www.w3.org/2000/svg">${arcs.join('')}</svg>
+<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+<div style="font-size:1.4em;font-weight:700;letter-spacing:-.02em">${topApp.pct}%</div>
+<div style="font-size:.7em;color:var(--ter);margin-top:2px">${topApp.label}</div>
+</div></div>
+<div style="flex:1;min-width:0">${legendHtml}</div></div>`;
 }
 
 // ─── CSS ────────────────────────────────────────────────────────────────────
@@ -227,6 +284,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
 .bar>div{height:100%;border-radius:3px}
 table{width:100%;border-collapse:collapse;font-size:.88em}
 th{text-align:left;font-size:.7em;color:var(--ter);text-transform:uppercase;letter-spacing:.5px;padding:5px 6px;border-bottom:1px solid var(--border);font-weight:600}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--sec)}
+th.sortable::after{content:' ⇅';opacity:.3;font-size:.8em}
+th.sortable.asc::after{content:' ↑';opacity:.8}
+th.sortable.desc::after{content:' ↓';opacity:.8}
+.stat-help{font-size:.75em;color:var(--ter);margin-top:4px;line-height:1.4}
+.mini-bar{display:inline-block;height:4px;border-radius:2px;vertical-align:middle;margin-left:6px}
+.bat-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05)}
+.bat-stat{text-align:center}
+.bat-stat-val{font-size:1.1em;font-weight:700}
+.bat-stat-lbl{font-size:.68em;color:var(--ter);margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
+.period-btns{display:flex;gap:4px;margin-bottom:8px}
+.period-btn{background:var(--border);border:none;color:var(--sec);font-size:.72em;padding:4px 12px;border-radius:8px;cursor:pointer;font-weight:600;letter-spacing:.3px;transition:background .15s,color .15s}
+.period-btn:hover{color:var(--text)}
+.period-btn.active{background:var(--green);color:#000}
+.crash-toggle{cursor:pointer;color:var(--blue);font-size:.75em;font-style:normal;margin-left:4px;border:1px solid var(--blue);opacity:.6;transition:opacity .15s}
+.crash-toggle:hover{opacity:1}
+.crash-apps{padding:4px 0 4px 16px;border-left:2px solid var(--border);margin:0 0 4px 4px;font-size:.85em}
+.donut-seg{cursor:pointer;transition:opacity .15s}
+.donut-seg:hover{opacity:.75}
+body.debug .stat-row,body.debug .kpi,body.debug .bat-stat{cursor:help;outline:1px dashed transparent;transition:outline-color .15s}
+body.debug .stat-row:hover,body.debug .kpi:hover,body.debug .bat-stat:hover{outline-color:rgba(10,132,255,.4)}
+body.debug #debug-badge{background:var(--blue);color:#000;border-color:var(--blue)}
 td{padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.02)}
 tr:last-child td{border-bottom:none}
 .tip{cursor:help;color:var(--ter);font-size:.82em;margin-left:3px;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--ter);font-style:normal;font-weight:600;line-height:1}
@@ -248,13 +328,69 @@ var _popup=null;
 function showTip(el,text){if(!_popup){_popup=document.createElement('div');_popup.className='tip-popup';document.body.appendChild(_popup)}_popup.textContent=text;_popup.style.display='block';var r=el.getBoundingClientRect();_popup.style.left=Math.max(8,Math.min(window.innerWidth-280,r.left+r.width/2-130))+'px';_popup.style.top=(r.top-8)+'px';_popup.style.transform='translateY(-100%)'}
 function hideTip(){if(_popup)_popup.style.display='none'}
 document.querySelectorAll('.tip').forEach(function(el){var text=el.getAttribute('data-tip');el.addEventListener('mouseenter',function(){showTip(el,text)});el.addEventListener('mouseleave',hideTip);el.addEventListener('touchstart',function(e){e.preventDefault();showTip(el,text);setTimeout(hideTip,3000)},{passive:false})});
+
+// Table sorting
+document.querySelectorAll('th.sortable').forEach(function(th){
+th.addEventListener('click',function(){
+var table=th.closest('table'),tbody=table.querySelector('tbody');
+var rows=Array.from(tbody.querySelectorAll('tr'));
+var idx=Array.from(th.parentNode.children).indexOf(th);
+var isNum=th.dataset.type==='num';
+var asc=th.classList.contains('asc');
+table.querySelectorAll('th').forEach(function(h){h.classList.remove('asc','desc')});
+th.classList.add(asc?'desc':'asc');
+rows.sort(function(a,b){
+var va=a.children[idx]?.textContent?.trim()||'';
+var vb=b.children[idx]?.textContent?.trim()||'';
+if(isNum){va=parseFloat(va.replace(/[^\\d.]/g,''))||0;vb=parseFloat(vb.replace(/[^\\d.]/g,''))||0}
+return asc?(va>vb?-1:va<vb?1:0):(va<vb?-1:va>vb?1:0)});
+rows.forEach(function(r){tbody.appendChild(r)})})});
 function initChart(svg){var cid=svg.id,tt=document.getElementById('tt_'+cid),tl=document.getElementById('ttl_'+cid),tb=document.getElementById('ttb_'+cid),tv=document.getElementById('ttv_'+cid),tt2=document.getElementById('ttt_'+cid);if(!tt)return;var pts=svg.querySelectorAll('.hover-point');
 function handleMove(mx){var r=svg.getBoundingClientRect(),sw=svg.viewBox.baseVal.width;var cl=null,md=1e9;pts.forEach(function(p){var cx=parseFloat(p.getAttribute('cx')),d=Math.abs(cx-mx);if(d<md){md=d;cl=p}});if(cl&&md<80){var cx=parseFloat(cl.getAttribute('cx')),cy=parseFloat(cl.getAttribute('cy')),v=cl.getAttribute('data-val'),t=cl.getAttribute('data-time'),u=cl.getAttribute('data-unit');tt.setAttribute('visibility','visible');tl.setAttribute('x1',cx);tl.setAttribute('x2',cx);var bx=cx-70;if(bx<5)bx=5;if(bx>sw-150)bx=sw-150;var flip=cy<60;var by=flip?cy+12:cy-50;tb.setAttribute('x',bx);tb.setAttribute('y',by);tv.setAttribute('x',bx+70);tv.setAttribute('y',by+22);tv.textContent=v+u;tt2.setAttribute('x',bx+70);tt2.setAttribute('y',by+37);tt2.textContent=t}else{tt.setAttribute('visibility','hidden')}}
 svg.addEventListener('mousemove',function(e){var r=svg.getBoundingClientRect(),sw=svg.viewBox.baseVal.width;handleMove((e.clientX-r.left)*sw/r.width)});
 svg.addEventListener('mouseleave',function(){tt.setAttribute('visibility','hidden')});
 svg.addEventListener('touchmove',function(e){e.preventDefault();var touch=e.touches[0];var r=svg.getBoundingClientRect(),sw=svg.viewBox.baseVal.width;handleMove((touch.clientX-r.left)*sw/r.width)},{passive:false});
 svg.addEventListener('touchend',function(){setTimeout(function(){tt.setAttribute('visibility','hidden')},1500)})}
-document.querySelectorAll('.chart-svg').forEach(initChart)})();`;
+document.querySelectorAll('.chart-svg').forEach(initChart)})();
+
+// Crash toggle
+window.toggleCrash=function(el){var id=el.getAttribute('data-target');var el2=document.getElementById(id);if(!el2)return;var vis=el2.style.display!=='none';el2.style.display=vis?'none':'block';el.textContent=vis?'▸':'▾'};
+
+// Preview/Debug mode
+window._debugMode=false;
+window.toggleDebug=function(){window._debugMode=!window._debugMode;document.body.classList.toggle('debug',window._debugMode);document.getElementById('debug-badge').textContent=window._debugMode?'Debug':'Preview';document.getElementById('debug-badge').classList.toggle('active',window._debugMode)};
+// In debug mode, clicking any stat-row shows source info
+document.addEventListener('click',function(e){if(!window._debugMode)return;var row=e.target.closest('.stat-row,.kpi,.bat-stat,.donut-seg');if(!row){return}var info=row.getAttribute('data-source');if(!info){var label=row.querySelector('.k')?.textContent||row.querySelector('.bat-stat-lbl')?.textContent||'';info='Source: PowerLog / ASP SMART\\nField: '+label}var popup=document.getElementById('debug-popup');if(!popup){popup=document.createElement('div');popup.id='debug-popup';popup.style.cssText='position:fixed;background:#1c1c1e;border:1px solid #48484a;color:#f5f5f7;padding:10px 14px;border-radius:10px;font-size:.78em;z-index:9999;max-width:320px;white-space:pre-line;box-shadow:0 8px 24px rgba(0,0,0,.5)';document.body.appendChild(popup)}popup.textContent=info;popup.style.display='block';var r=row.getBoundingClientRect();popup.style.left=Math.max(8,Math.min(window.innerWidth-340,r.left))+'px';popup.style.top=(r.bottom+6)+'px';setTimeout(function(){popup.style.display='none'},4000)},{capture:true});
+
+// Period switching
+window.switchPeriod=function(chartId,days,btn){
+var td=window._trendData;if(!td||td.id!==chartId)return;
+var wrap=document.getElementById(chartId+'-chart-wrap');if(!wrap)return;
+var pts=td.data;
+if(days!=='all'){var cutoff=pts[pts.length-1].t-days*86400;pts=pts.filter(function(p){return p.t>=cutoff})}
+if(pts.length<2)return;
+// Update active button
+btn.parentNode.querySelectorAll('.period-btn').forEach(function(b){b.classList.remove('active')});btn.classList.add('active');
+// Rebuild bands
+var bands=[],bs=null;
+for(var i=0;i<pts.length;i++){if(pts[i].s&&!bs)bs=pts[i].t;if(!pts[i].s&&bs){bands.push({start:bs,end:pts[i].t});bs=null}}
+if(bs)bands.push({start:bs,end:pts[pts.length-1].t});
+// Render SVG client-side
+var W=1000,H=200,pl=52,pr=20,pt=16,pb=42,cw=W-pl-pr,ch=H-pt-pb;
+var t0=pts[0].t,t1=pts[pts.length-1].t,tr=t1-t0||1;
+var vals=pts.map(function(p){return p.l||0}),maxV=100;
+var tx=function(t){return pl+(t-t0)/tr*cw},ty=function(v){return pt+ch-v/maxV*ch};
+var path=pts.map(function(p,i){return(i?'L':'M')+tx(p.t).toFixed(1)+','+ty(p.l||0).toFixed(1)}).join(' ');
+var fill=path+' L'+tx(t1).toFixed(1)+','+(pt+ch)+' L'+tx(t0).toFixed(1)+','+(pt+ch)+' Z';
+var bandsS=bands.map(function(b){var x1=Math.max(pl,tx(b.start)),x2=Math.min(pl+cw,tx(b.end));return x2>x1+1?'<rect x="'+x1.toFixed(1)+'" y="'+pt+'" width="'+(x2-x1).toFixed(1)+'" height="'+ch+'" fill="#34c759" opacity="0.06"/>':''}).join('');
+var timeS='';for(var i=0;i<7;i++){var f=i/6,x=pl+f*cw,ts=t0+f*tr;var d=new Date((ts+td.tz*60)*1000);var lbl=(d.getUTCMonth()+1)+'/'+String(d.getUTCDate()).padStart(2,'0')+' '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');timeS+='<text x="'+x.toFixed(0)+'" y="'+(pt+ch+18)+'" text-anchor="middle" class="axis-label">'+lbl+'</text><line x1="'+x.toFixed(0)+'" y1="'+pt+'" x2="'+x.toFixed(0)+'" y2="'+(pt+ch)+'" class="grid-line"/>'}
+var yS='';for(var i=0;i<5;i++){var val=i/4*maxV,y=ty(val);yS+='<text x="'+(pl-8)+'" y="'+(y+4)+'" text-anchor="end" class="axis-label">'+val.toFixed(0)+'%</text>'+(i>0?'<line x1="'+pl+'" y1="'+y.toFixed(1)+'" x2="'+(pl+cw)+'" y2="'+y.toFixed(1)+'" class="grid-line"/>':'')}
+var wy=ty(20);var warn='<line x1="'+pl+'" y1="'+wy.toFixed(1)+'" x2="'+(pl+cw)+'" y2="'+wy.toFixed(1)+'" stroke="#ff3b30" stroke-width="1" stroke-dasharray="6,3" opacity=".5"/><text x="'+(pl+cw-4)+'" y="'+(wy-6)+'" fill="#ff3b30" font-size="11" text-anchor="end" font-weight="600">20%</text>';
+var hover=pts.map(function(p){var x=tx(p.t),y=ty(p.l||0);var v=(p.l||0).toFixed(1);var dd=new Date((p.t+td.tz*60)*1000);var ts=dd.getUTCFullYear()+'-'+String(dd.getUTCMonth()+1).padStart(2,'0')+'-'+String(dd.getUTCDate()).padStart(2,'0')+' '+String(dd.getUTCHours()).padStart(2,'0')+':'+String(dd.getUTCMinutes()).padStart(2,'0')+':'+String(dd.getUTCSeconds()).padStart(2,'0');return'<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="8" fill="transparent" class="hover-point" data-val="'+v+'" data-time="'+ts+'" data-unit="%"/>'}).join('');
+var svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:'+H+'px" xmlns="http://www.w3.org/2000/svg" class="chart-svg" id="'+chartId+'"><defs><linearGradient id="g_'+chartId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#34c759" stop-opacity=".12"/><stop offset="100%" stop-color="#34c759" stop-opacity="0"/></linearGradient></defs>'+bandsS+timeS+yS+'<line x1="'+pl+'" y1="'+pt+'" x2="'+pl+'" y2="'+(pt+ch)+'" stroke="#3a3a3c" stroke-width="1"/><line x1="'+pl+'" y1="'+(pt+ch)+'" x2="'+(pl+cw)+'" y2="'+(pt+ch)+'" stroke="#3a3a3c" stroke-width="1"/><path d="'+fill+'" fill="url(#g_'+chartId+')"/><path d="'+path+'" fill="none" stroke="#34c759" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'+warn+hover+'<g id="tt_'+chartId+'" class="chart-tooltip" visibility="hidden" pointer-events="none"><line id="ttl_'+chartId+'" x1="0" y1="'+pt+'" x2="0" y2="'+(pt+ch)+'" stroke="#8e8e93" stroke-width="1" stroke-dasharray="3"/><rect id="ttb_'+chartId+'" x="0" y="0" width="140" height="40" rx="10" fill="#2c2c2e" stroke="#48484a"/><text id="ttv_'+chartId+'" x="0" y="0" fill="#fff" font-size="15" font-weight="700" text-anchor="middle"></text><text id="ttt_'+chartId+'" x="0" y="0" fill="#8e8e93" font-size="11" text-anchor="middle"></text></g></svg>';
+wrap.innerHTML=svg;
+initChart(wrap.querySelector('.chart-svg'));
+};`;
 
 // ─── Report Generator ───────────────────────────────────────────────────────
 
@@ -292,6 +428,7 @@ function generateReport(data) {
 
   const lang = detectLanguage(data, tzMin);
   const isCn = lang === 'zh';
+  const T = text => `<i class="tip" data-tip="${text}">?</i>`;
 
   const healthPct = battery.health_pct || 0;
   const nandPct = nand.percent_used || 0;
@@ -341,17 +478,22 @@ function generateReport(data) {
   if (usageSum.screen_on_sec > 0) {
     const days = usageSum.max_ts && usageSum.min_ts ? Math.max(1, Math.round((usageSum.max_ts - usageSum.min_ts) / 86400)) : 1;
     const avgOn = Math.round(usageSum.screen_on_sec / days / 3600 * 10) / 10;
-    deviceInfo.push([isCn ? '总亮屏' : 'Screen On', `${fmtSeconds(usageSum.screen_on_sec)} (~${avgOn}h/${isCn ? '天' : 'd'})`]);
+    const totalH = Math.floor(usageSum.screen_on_sec / 3600);
+    const totalM = Math.floor((usageSum.screen_on_sec % 3600) / 60);
+    const rangeStr = usageSum.max_ts && usageSum.min_ts
+      ? `${fmtDatetime(usageSum.min_ts, tzMin).split(' ')[0]}~${fmtDatetime(usageSum.max_ts, tzMin).split(' ')[0]}(${days}${isCn ? '天' : 'd'})`
+      : '';
+    deviceInfo.push([`${isCn ? '总亮屏' : 'Screen On'}${T(isCn ? `统计周期 ${rangeStr}，日均 ${avgOn} 小时` : `Period: ${rangeStr}, avg ${avgOn}h/d`)}`, `${totalH}${isCn ? '时' : 'h'}${totalM}${isCn ? '分' : 'm'} (~${avgOn}h/${isCn ? '天' : 'd'})`]);
   }
   if (usageSum.fcc_max_mah) {
-    deviceInfo.push([isCn ? '电池FCC' : 'FCC', `${usageSum.fcc_min_mah}~${usageSum.fcc_max_mah} mAh`]);
+    deviceInfo.push([`${isCn ? '电池FCC' : 'FCC'}${T(isCn ? 'Full Charge Capacity，电池实际能充进的最大电量。随使用衰减，此处显示记录到的最低~最高值' : 'Full Charge Capacity. Range shows min~max observed')}`, `${usageSum.fcc_min_mah}~${usageSum.fcc_max_mah} mAh`]);
   }
   if (usageSum.total_op_hours) {
-    deviceInfo.push([isCn ? '累计使用' : 'Cum. Use', `${Math.round(usageSum.total_op_hours / 24)}${isCn ? '天' : 'd'}`]);
+    deviceInfo.push([`${isCn ? '累计通电' : 'Cum. On'}${T(isCn ? '自上次"抹掉所有内容"以来的累计通电时间，关机不计入' : 'Cumulative powered-on time since last erase')}`, `${Math.round(usageSum.total_op_hours / 24)}${isCn ? '天' : 'd'}`]);
   }
 
   const metaLines = [
-    `${isCn ? '电量/崩溃日志' : 'Battery/Crash log'}: ${logRange} (${isCn ? '约' : '~'}${Math.round((trend.length ? (trend[trend.length - 1].ts - trend[0].ts) : 0) / 3600)}h)`,
+    `${isCn ? '日志范围' : 'Log range'}: ${logRange}`,
     `${isCn ? '报告生成' : 'Generated'}: ${generatedAt} (${tzLabel})`,
     `Analyzer: v${VERSION}`,
   ];
@@ -376,66 +518,100 @@ function generateReport(data) {
     deviceInfo.map(([k, v]) => `<div class="item"><div class="val">${v}</div><div class="lbl">${k}</div></div>`).join('') +
     '</div>';
 
-  const T = text => `<i class="tip" data-tip="${text}">?</i>`;
-
   // ─── Battery Card ───
   const batCard = `<div class="card"><div class="card-title">${isCn ? '电池详情' : 'Battery'}</div>
 <div class="stat-big" style="color:${hC}">${healthPct}%</div>
 <div class="stat-sub">${battery.current_max_capacity_mah || '?'} / ${battery.design_capacity_mah || '?'} mAh</div>
 <div class="bar"><div style="width:${healthPct}%;background:${hC}"></div></div>
 <div style="margin-top:8px">
-<div class="stat-row"><span class="k">${isCn ? '循环次数' : 'Cycles'}</span><span class="v">${cycles}</span></div>
-<div class="stat-row"><span class="k">${isCn ? '设计容量' : 'Design'}</span><span class="v">${battery.design_capacity_mah || '?'} mAh</span></div>
-<div class="stat-row"><span class="k">${isCn ? '当前容量' : 'Current'}</span><span class="v">${battery.current_max_capacity_mah || '?'} mAh</span></div>
-<div class="stat-row"><span class="k">${isCn ? '容量损耗' : 'Degraded'}</span><span class="v">${(battery.design_capacity_mah || 0) - (battery.current_max_capacity_mah || 0)} mAh (${(100 - healthPct).toFixed(1)}%)</span></div>
-<div class="stat-row"><span class="k">${isCn ? '温度' : 'Temp'}</span><span class="v">${battery.temperature_c || '?'}°C</span></div>
-<div class="stat-row"><span class="k">${isCn ? '电压' : 'Voltage'}</span><span class="v">${battery.voltage_mv || '?'} mV</span></div>
-<div class="stat-row"><span class="k">${isCn ? '标称容量' : 'Nominal'}</span><span class="v">${battery.nominal_capacity_mah || 'N/A'} mAh</span></div>
+<div class="stat-row" data-source="PLBatteryAgent_EventBackward_Battery.CycleCount"><span class="k">${isCn ? '循环次数' : 'Cycles'}</span><span class="v">${cycles}</span></div>
+<div class="stat-row" data-source="PLBatteryAgent_EventBackward_Battery.DesignCapacity"><span class="k">${isCn ? '设计容量' : 'Design'}</span><span class="v">${battery.design_capacity_mah || '?'} mAh</span></div>
+<div class="stat-row" data-source="PLBatteryAgent_EventBackward_Battery.AppleRawMaxCapacity"><span class="k">${isCn ? '当前容量' : 'Current'}</span><span class="v">${battery.current_max_capacity_mah || '?'} mAh</span></div>
+<div class="stat-row" data-source="计算: DesignCapacity - AppleRawMaxCapacity"><span class="k">${isCn ? '容量损耗' : 'Degraded'}</span><span class="v">${(battery.design_capacity_mah || 0) - (battery.current_max_capacity_mah || 0)} mAh (${(100 - healthPct).toFixed(1)}%)</span></div>
+<div class="stat-row" data-source="PLBatteryAgent_EventBackward_Battery.Temperature"><span class="k">${isCn ? '温度' : 'Temp'}</span><span class="v">${battery.temperature_c || '?'}°C</span></div>
+<div class="stat-row" data-source="PLBatteryAgent_EventBackward_Battery.Voltage"><span class="k">${isCn ? '电压' : 'Voltage'}</span><span class="v">${battery.voltage_mv || '?'} mV</span></div>
+<div class="stat-row" data-source="PLBatteryAgent_EventBackward_Battery.NominalChargeCapacity"><span class="k">${isCn ? '标称容量' : 'Nominal'}</span><span class="v">${battery.nominal_capacity_mah || 'N/A'} mAh</span></div>
 </div></div>`;
 
   // ─── NAND Card ───
   const pe = nand.avg_tlc_pe_cycles || 0;
-  const eol = nand.eol_cycles || 3000;
-  const pePct = Math.round(pe / eol * 1000) / 10;
+  const eol = nand.max_native_endurance || nand.eol_cycles || null;
+  const pePct = eol ? Math.round(pe / eol * 1000) / 10 : null;
   const nandCard = `<div class="card"><div class="card-title">${isCn ? '闪存健康' : 'NAND Flash'}</div>
 <div class="stat-big" style="color:${nC}">${nandRemain}%</div>
 <div class="stat-sub">${isCn ? '剩余寿命' : 'Remaining'}</div>
 <div class="bar"><div style="width:${nandRemain}%;background:${nC}"></div></div>
 <div style="margin-top:8px">
-<div class="stat-row"><span class="k">${isCn ? '主机写入' : 'Host write'}${T(isCn ? 'iOS系统请求写入的数据量。你保存照片、安装App等操作都算在这里' : 'Data written as requested by iOS')}</span><span class="v">${hwTb.toFixed(1)} TB</span></div>
-<div class="stat-row"><span class="k">${isCn ? '主机读取' : 'Host read'}${T(isCn ? 'iOS系统请求读取的数据量' : 'Data read as requested by iOS')}</span><span class="v">${hrTb.toFixed(1)} TB</span></div>
-<div class="stat-row"><span class="k">${isCn ? '闪存写入' : 'NAND write'}${T(isCn ? '闪存芯片实际写入的物理数据量，因垃圾回收和磨损均衡机制，通常大于主机写入量' : 'Physical data written to NAND, exceeds host writes due to GC')}</span><span class="v">${nwTb.toFixed(1)} TB</span></div>
-<div class="stat-row"><span class="k">${isCn ? '闪存读取' : 'NAND read'}${T(isCn ? '闪存芯片实际读取的物理数据量' : 'Physical data read from NAND')}</span><span class="v">${nrTb.toFixed(1)} TB</span></div>
-<div class="stat-row"><span class="k">PE ${isCn ? '擦写' : ''}${T(isCn ? `闪存每个存储单元可擦除重新写入的次数。TLC闪存典型寿命约3000次，到达后该单元可能失效。当前已用${pePct}%，剩余${Math.round((1 - pePct / 100) * eol)}次` : `Program-Erase cycles per cell. TLC ~3000. Currently ${pePct}% used`)}</span><span class="v">${pe} / ${eol} (${pePct}%)</span></div>
-<div class="stat-row"><span class="k">${isCn ? '坏块' : 'Bad'}${T(isCn ? 'NAND中标记为不可用的存储块。出厂坏块是生产时检测到的缺陷，属于正常范围。增长坏块是在使用中新增的，表示闪存老化' : 'Unusable blocks. Factory defects normal. Grown indicates aging')}</span><span class="v">${nand.grown_bad_blocks || 0} ${isCn ? '增长' : 'grown'} / ${nand.factory_bad_blocks || 0} ${isCn ? '出厂' : 'factory'}</span></div>
-<div class="stat-row"><span class="k">WAF${T(isCn ? `写入放大系数 = 闪存实际写入量 ÷ 主机写入量。因为闪存必须先擦除整个块才能写入新数据（就像擦黑笔字要整面擦），所以实际写入量总是大于你请求的量。1.0=完美无浪费，当前${nand.write_amp || '?'}意味着每写1TB数据闪存实际写${nand.write_amp || '?'}TB` : `Write Amp = NAND writes / host writes. Flash erases whole blocks before writing. 1.0=perfect. Current ${nand.write_amp || '?'}`)}</span><span class="v">${nand.write_amp || 'N/A'}</span></div>
-<div class="stat-row"><span class="k">${isCn ? '累计通电' : 'Cumulative on'}${T(isCn ? `自上次抹掉所有内容后，设备的累计通电时间（关机期间不计入）和总开机次数。${Math.floor(powerHours / 24)}天是累计值，不是连续不关机` : `Powered-on time since last erase. ${Math.floor(powerHours / 24)}d is cumulative`)}</span><span class="v">${powerHours}h (${Math.floor(powerHours / 24)}${isCn ? '天' : 'd'}) / ${totalBoots}${isCn ? '次开机' : ' boots'}</span></div>
+<div class="stat-row" data-source="ASPSnapshots/asptool_snapshot.log → hostWrites"><span class="k">${isCn ? '主机写入' : 'Host write'}${T(isCn ? 'iOS系统请求写入的数据量' : 'Data written as requested by iOS')}</span><span class="v">${hwTb.toFixed(1)} TB</span></div>
+<div class="stat-row" data-source="ASPSnapshots/asptool_snapshot.log → hostReads"><span class="k">${isCn ? '主机读取' : 'Host read'}${T(isCn ? 'iOS系统请求读取的数据量' : 'Data read as requested by iOS')}</span><span class="v">${hrTb.toFixed(1)} TB</span></div>
+<div class="stat-row" data-source="ASPSnapshots/asptool_snapshot.log → nandWrites"><span class="k">${isCn ? '闪存写入' : 'NAND write'}${T(isCn ? '闪存芯片实际写入的物理数据量，因垃圾回收和磨损均衡机制，通常大于主机写入量' : 'Physical data written to NAND, exceeds host writes due to GC')}</span><span class="v">${nwTb.toFixed(1)} TB</span></div>
+<div class="stat-row" data-source="ASPSnapshots/asptool_snapshot.log → nandReads"><span class="k">${isCn ? '闪存读取' : 'NAND read'}${T(isCn ? '闪存芯片实际读取的物理数据量' : 'Physical data read from NAND')}</span><span class="v">${nrTb.toFixed(1)} TB</span></div>
+<div class="stat-row" data-source="ASPSnapshots/asptool_snapshot.log → averageTLCPECycles / maxNativeEndurance"><span class="k">PE ${isCn ? '擦写' : ''}${T(isCn ? '闪存每个存储单元可擦除重新写入的次数，到达后该单元可能失效' : 'Program-Erase cycles per cell')}</span><span class="v">${pe}${eol ? ` / ${eol} (${pePct}%)` : ''}</span></div>
+<div class="stat-row" data-source="ASPSnapshots/asptool_snapshot.log → numGrownBad / numFactoryBad"><span class="k">${isCn ? '坏块' : 'Bad'}${T(isCn ? 'NAND中标记为不可用的存储块' : 'Unusable blocks')}</span><span class="v">${nand.grown_bad_blocks || 0} ${isCn ? '增长' : 'grown'} / ${nand.factory_bad_blocks || 0} ${isCn ? '出厂' : 'factory'}</span></div>
+<div class="stat-row" data-source="计算: nandWrites / hostWrites"><span class="k">WAF${T(isCn ? '写入放大系数 = 闪存实际写入量 ÷ 主机写入量' : 'Write Amp = NAND writes / host writes')}</span><span class="v">${nand.write_amp || 'N/A'}</span></div>
+<div class="stat-row" data-source="ASPSnapshots/asptool_snapshot.log → powerOnHours / boots"><span class="k">${isCn ? '累计通电' : 'Cumulative on'}${T(isCn ? '自上次抹掉所有内容后的累计通电时间' : 'Powered-on time since last erase')}</span><span class="v">${powerHours}h (${Math.floor(powerHours / 24)}${isCn ? '天' : 'd'}) / ${totalBoots}${isCn ? '次开机' : ' boots'}</span></div>
 </div></div>`;
 
   // ─── Battery Chart ───
   let batChart = '';
   if (trend.length >= 2) {
-    const spanH = (trend[trend.length - 1].ts - trend[0].ts) / 3600;
-    const spanLabel = `（${isCn ? '约' : '~'}${spanH.toFixed(0)}${isCn ? '小时' : 'h'} ${isCn ? '日志' : 'log'}）`;
-    const svg = interactiveChartSvg(trend, 'level', { height: 200, color: '#34c759', unit: '%', yMax: 100, warnLine: 20, chartId: 'bat', tzOffsetMinutes: tzMin });
-    batChart = `<div class="card full"><div class="card-title">${isCn ? '电量趋势' : 'Battery Trend'} ${spanLabel}</div>${svg}</div>`;
+    // Build screen-on bands from brightness data
+    const bands = [];
+    let bandStart = null;
+    for (const p of trend) {
+      if (p.screen_on && !bandStart) bandStart = p.ts;
+      if (!p.screen_on && bandStart) {
+        bands.push({ start: bandStart, end: p.ts, color: '#34c759', opacity: 0.06 });
+        bandStart = null;
+      }
+    }
+    if (bandStart) bands.push({ start: bandStart, end: trend[trend.length - 1].ts, color: '#34c759', opacity: 0.06 });
+
+    const svg = interactiveChartSvg(trend, 'level', { height: 200, color: '#34c759', unit: '%', yMax: 100, warnLine: 20, chartId: 'bat', tzOffsetMinutes: tzMin, bands });
+    const bSum = data.battery_summary || {};
+    let statsHtml = '';
+    if (bSum.avg_discharge_pct_per_day) {
+      statsHtml = `<div class="bat-stats">
+<div class="bat-stat"><div class="bat-stat-val">${bSum.avg_discharge_pct_per_day}%</div><div class="bat-stat-lbl">${isCn ? '日均消耗' : 'Daily drain'}</div></div>
+<div class="bat-stat"><div class="bat-stat-val">${bSum.avg_discharge_rate_pct_h}%/h</div><div class="bat-stat-lbl">${isCn ? '放电速率' : 'Discharge'}</div></div>
+<div class="bat-stat"><div class="bat-stat-val">${bSum.avg_charge_rate_pct_h}%/h</div><div class="bat-stat-lbl">${isCn ? '充电速率' : 'Charge'}</div></div>
+<div class="bat-stat"><div class="bat-stat-val">${bSum.charge_sessions || 0}</div><div class="bat-stat-lbl">${isCn ? '充电次数' : 'Charges'}</div></div>
+</div>`;
+    }
+    const legendHtml = bands.length ? `<div style="margin-top:6px;font-size:.72em;color:var(--ter)"><span style="display:inline-block;width:12px;height:8px;background:#34c759;opacity:.3;border-radius:2px;vertical-align:middle;margin-right:4px"></span>${isCn ? '绿色背景 = 亮屏' : 'Green = screen on'}</div>` : '';
+    const trendJson = JSON.stringify(trend.map(p => ({t:p.ts, l:p.level, s:p.screen_on?1:0, c:p.charging?1:0})));
+    const spanSec = trend.length ? trend[trend.length-1].ts - trend[0].ts : 0;
+    const showDay = spanSec > 86400*2;
+    const showWeek = spanSec > 86400*8;
+    let periodBtns = '';
+    if (showDay || showWeek) {
+      periodBtns = '<div class="period-btns">';
+      if (showWeek) periodBtns += `<button class="period-btn" data-range="all" onclick="switchPeriod('bat','all',this)">${isCn ? '全部' : 'All'}</button>`;
+      if (showWeek) periodBtns += `<button class="period-btn" data-range="30" onclick="switchPeriod('bat',30,this)">30${isCn ? '天' : 'd'}</button>`;
+      if (showDay) periodBtns += `<button class="period-btn" data-range="7" onclick="switchPeriod('bat',7,this)">7${isCn ? '天' : 'd'}</button>`;
+      if (showDay) periodBtns += `<button class="period-btn active" data-range="1" onclick="switchPeriod('bat',1,this)">24${isCn ? '时' : 'h'}</button>`;
+      periodBtns += '</div>';
+    }
+    batChart = `<div class="card full"><div class="card-title">${isCn ? '电量趋势' : 'Battery Trend'} ${rangeLabel(trendData.min_ts, trendData.max_ts, tzMin, isCn)}</div>${periodBtns}<div id="bat-chart-wrap">${svg}</div>${legendHtml}${statsHtml}<script>window._trendData={id:'bat',tz:${tzMin},data:${trendJson}};</script></div>`;
   }
 
   // ─── Tables ───
-  let writerRows = '';
+  // NAND writes donut chart
+  let writerDonut = '';
   if (writers.length) {
-    const maxW = writers[0].logical_writes_bytes || 1;
-    for (const w of writers) {
-      const wr = w.logical_writes_bytes || 0;
-      const pct = wr / maxW * 100;
-      const bc = pct > 60 ? '#ff3b30' : pct > 30 ? '#ff6723' : pct > 10 ? '#ff9f0a' : '#636366';
-      writerRows += `<tr><td>${shortName(w.bundle_id)}</td><td style="font-weight:600">${fmtBytes(wr)}</td><td style="width:28%"><div class="bar"><div style="width:${pct}%;background:${bc}"></div></div></td></tr>`;
+    const topWriters = writers.slice(0, 8).map(w => ({ label: shortName(w.bundle_id), value: w.logical_writes_bytes || 0 }));
+    // If there are more than 8, add "其他" (Others)
+    if (writers.length > 8) {
+      const othersSum = writers.slice(8).reduce((s, w) => s + (w.logical_writes_bytes || 0), 0);
+      if (othersSum > 0) topWriters.push({ label: isCn ? '其他' : 'Others', value: othersSum });
     }
+    writerDonut = donutChartSvg(topWriters, { size: 140, chartId: 'nand' });
   }
 
   let appRows = '';
   for (const a of apps) {
-    appRows += `<tr><td>${shortName(a.bundle_id)}</td><td style="font-weight:600">${fmtSeconds(a.foreground_sec)}</td><td style="color:var(--sec)">${fmtSeconds(a.background_sec)}</td></tr>`;
+    const fmtHM = s => { s = Math.floor(s||0); const h = Math.floor(s/3600), m = Math.floor((s%3600)/60); return `${h}时${m}分`; };
+    appRows += `<tr><td>${shortName(a.bundle_id)}</td><td style="font-weight:600">${fmtHM(a.foreground_sec)}</td><td style="color:var(--sec)">${fmtHM(a.background_sec)}</td></tr>`;
   }
 
   let memRows = '';
@@ -449,60 +625,57 @@ function generateReport(data) {
     netRows += `<tr><td>${shortName(n.name)}</td><td>${fmtBytes(n.wifi_in_bytes + n.wifi_out_bytes)}</td><td>${fmtBytes(n.cellular_in_bytes + n.cellular_out_bytes)}</td></tr>`;
   }
 
-  // ─── Brightness Chart ───
-  let brightChart = '';
-  if (brightTrend.length >= 2) {
-    const svg = interactiveChartSvg(brightTrend, 'brightness', { height: 160, color: '#ff9f0a', unit: '', chartId: 'bright', tzOffsetMinutes: tzMin });
-    brightChart = `<div class="card-grid" style="margin-top:10px"><div class="card full"><div class="card-title">${isCn ? '亮度趋势' : 'Brightness Trend'}</div>${svg}</div></div>`;
-  }
-
-  // ─── GPS & Process Exits ───
+  // ─── GPS ───
   let gpsRows = '';
   for (const g of gps) {
     gpsRows += `<tr><td>${shortName(g.bundle_id)}</td><td>${g.location_requests}</td></tr>`;
-  }
-  let procRows = '';
-  for (const p of procExits) {
-    procRows += `<tr><td>${shortName(p.name)}</td><td>${p.count}</td><td style="color:var(--sec)">${p.namespace || ''}</td></tr>`;
   }
 
   const na = isCn ? '暂无数据' : 'N/A';
   const al = isCn ? '应用' : 'App';
 
   // ─── Crash Card ───
+  // Crash card: inline expand icons for Jetsam/disk_writes
   const jetsam = crashes.jetsam || 0;
-  // Crash detail lines for disk write exceedance and Jetsam
-  let crashDetailStr = '';
-  if (crashDetails.length) {
-    // Group Jetsam details by app
-    const jetsamApps = {};
-    const diskWriteApps = [];
-    for (const d of crashDetails) {
-      if (d.type === 'jetsam') {
-        jetsamApps[d.app] = (jetsamApps[d.app] || 0) + 1;
-      } else if (d.type === 'disk_writes') {
-        diskWriteApps.push(d);
-      }
+  const jetsamApps = {}, diskWriteApps = [];
+  for (const d of crashDetails) {
+    if (d.type === 'jetsam') jetsamApps[d.app] = (jetsamApps[d.app] || 0) + 1;
+    else if (d.type === 'disk_writes') diskWriteApps.push(d);
+  }
+  const jetsamEntries = Object.entries(jetsamApps).sort((a, b) => b[1] - a[1]);
+
+  let jetsamDetail = '';
+  if (jetsamEntries.length) {
+    jetsamDetail = `<div class="crash-apps" id="jetsam-apps" style="display:none">`;
+    for (const [app, cnt] of jetsamEntries.slice(0, 8)) {
+      jetsamDetail += `<div class="stat-row"><span class="k">${app}</span><span class="v" style="color:#ff9f0a">${cnt}×</span></div>`;
     }
-    for (const [app, cnt] of Object.entries(jetsamApps).sort((a, b) => b[1] - a[1]).slice(0, 5)) {
-      crashDetailStr += `<div class="stat-row"><span class="k">${shortName(app)}</span><span class="v" style="color:#ff9f0a">${cnt}× Jetsam</span></div>`;
+    jetsamDetail += '</div>';
+  }
+  let diskDetail = '';
+  if (diskWriteApps.length) {
+    diskDetail = `<div class="crash-apps" id="disk-apps" style="display:none">`;
+    for (const d of diskWriteApps.slice(0, 5)) {
+      diskDetail += `<div class="stat-row"><span class="k">${d.app}</span><span class="v">${isCn ? '超限' : 'exceeded'}</span></div>`;
     }
-    for (const d of diskWriteApps.slice(0, 3)) {
-      crashDetailStr += `<div class="stat-row"><span class="k">${shortName(d.app)}</span><span class="v">${isCn ? '磁盘写入超限' : 'Disk write exceed'}</span></div>`;
-    }
+    diskDetail += '</div>';
   }
 
-  const crashCard = `<div class="card"><div class="card-title">${isCn ? '崩溃分析（近 48 小时）' : 'Crash Analysis (48h)'}</div>
+  const jetsamToggle = jetsamEntries.length ? `<i class="tip crash-toggle" data-target="jetsam-apps" onclick="toggleCrash(this)" data-tip="${isCn ? '点击查看进程' : 'Show processes'}">▾</i>` : '';
+  const diskToggle = diskWriteApps.length ? `<i class="tip crash-toggle" data-target="disk-apps" onclick="toggleCrash(this)" data-tip="${isCn ? '点击查看进程' : 'Show processes'}">▾</i>` : '';
+
+  const crashCard = `<div class="card"><div class="card-title">${isCn ? '崩溃分析' : 'Crash Analysis'}</div>
 <div class="stat-big" style="color:${totalCrashes > 20 ? '#ff3b30' : totalCrashes > 5 ? '#ff9f0a' : 'var(--sec)'}">${totalCrashes}</div>
-<div class="stat-sub">${isCn ? '48小时内诊断日志中的崩溃/异常事件' : 'Crash/exception events in 48h logs'}</div>
+<div class="stat-sub">${isCn ? '诊断日志中的崩溃/异常事件' : 'Crash/exception events in logs'}</div>
 <div style="margin-top:8px">
-<div class="stat-row"><span class="k">Jetsam ${isCn ? '内存回收' : 'memory kill'}${T(isCn ? '系统内存不足时，iOS按优先级强制结束低优先级进程来释放内存。频繁出现说明内存压力大' : 'iOS kills low-priority processes when memory is low')}</span><span class="v" style="color:${jetsam > 10 ? '#ff3b30' : 'inherit'}">${jetsam}</span></div>
-<div class="stat-row"><span class="k">Safari ${isCn ? '崩溃' : 'crash'}${T(isCn ? 'Safari浏览器异常退出，通常是网页JavaScript或内存问题导致' : 'Safari abnormal exit, usually JS or memory issues')}</span><span class="v">${crashes.safari || 0}</span></div>
-<div class="stat-row"><span class="k">${isCn ? '磁盘写入超限' : 'Disk write exceed'}${T(isCn ? 'App在短时间内写入过多数据，被系统限制' : 'App wrote too much data, system throttled')}</span><span class="v">${crashes.disk_writes || 0}</span></div>
-<div class="stat-row"><span class="k">CPU ${isCn ? '超限' : 'resource'}${T(isCn ? '进程持续高CPU占用被系统检测并记录' : 'Process sustained high CPU usage detected')}</span><span class="v">${crashes.cpu_resource || 0}</span></div>
-<div class="stat-row"><span class="k">SFA ${isCn ? '安全事件' : 'security'}${T(isCn ? 'Apple安全框架事件，通常与钥匙串、CloudKit同步相关，一般无影响' : 'Apple security framework events, usually harmless')}</span><span class="v">${crashes.sfa || 0}</span></div>
-<div class="stat-row"><span class="k">${isCn ? '其他' : 'Other'}</span><span class="v">${crashes.other || 0}</span></div>
-${crashDetailStr}
+<div class="stat-row"><span class="k">Jetsam ${isCn ? '内存回收' : 'memory kill'}${T(isCn ? '系统内存不足时强制结束进程释放内存' : 'iOS kills processes when memory low')}</span><span class="v" style="color:${jetsam > 10 ? '#ff3b30' : 'inherit'}">${jetsam} ${jetsamToggle}</span></div>
+${jetsamDetail}
+<div class="stat-row"><span class="k">Safari ${isCn ? '崩溃' : 'crash'}${T(isCn ? 'Safari异常退出' : 'Safari abnormal exit')}</span><span class="v">${crashes.safari || 0}</span></div>
+<div class="stat-row"><span class="k">${isCn ? '磁盘写入超限' : 'Disk write exceed'}${T(isCn ? 'App短时间写入过多被限制' : 'App wrote too much, throttled')}</span><span class="v">${crashes.disk_writes || 0} ${diskToggle}</span></div>
+${diskDetail}
+<div class="stat-row"><span class="k">CPU ${isCn ? '超限' : 'resource'}${T(isCn ? '进程持续高CPU占用被记录' : 'High CPU usage detected')}</span><span class="v">${crashes.cpu_resource || 0}</span></div>
+<div class="stat-row"><span class="k">SFA ${isCn ? '安全事件' : 'security'}${T(isCn ? 'Apple安全框架事件，通常无影响' : 'Security framework, usually harmless')}</span><span class="v">${crashes.sfa || 0}</span></div>
+${crashes.other ? `<div class="stat-row"><span class="k">${isCn ? '其他' : 'Other'}</span><span class="v">${crashes.other}</span></div>` : ''}
 </div></div>`;
 
   // ─── App Exits Card ───
@@ -530,6 +703,7 @@ ${crashDetailStr}
 <div class="meta">${metaLines.join('<br>')}</div>
 ${deviceStrip}
 </div>
+<div id="debug-badge" onclick="toggleDebug()" style="position:fixed;top:12px;left:12px;z-index:100;background:var(--card);border:1px solid var(--border);color:var(--sec);font-size:.7em;padding:4px 10px;border-radius:8px;cursor:pointer;font-weight:600;letter-spacing:.3px;transition:all .15s" title="切换 Preview/Debug 模式">Preview</div>
 <div class="wrap">
 ${kpiHtml}
 <div class="card-grid">${batCard}${nandCard}</div>
@@ -539,30 +713,21 @@ ${crashCard}
 ${appExitCard || `<div class="card"><div class="card-title">${isCn ? 'Jetsam 内存回收' : 'Jetsam Kills'}</div><div class="stat-sub">${na}</div></div>`}
 </div>
 <div class="card-grid" style="margin-top:10px">
-<div class="card"><div class="card-title">${isCn ? '存储写入排行' : 'NAND Writes'} ${rangeLabel(writersData.min_ts, writersData.max_ts, tzMin, isCn)}</div>
-<table><thead><tr><th>${al}</th><th>${isCn ? '写入' : 'Writes'}</th><th></th></tr></thead><tbody>${writerRows}</tbody></table></div>
+<div class="card"><div class="card-title">${isCn ? '存储写入' : 'NAND Writes'} ${rangeLabel(writersData.min_ts, writersData.max_ts, tzMin, isCn)}</div>
+${writerDonut || `<div class="stat-sub">${na}</div>`}</div>
 <div class="card"><div class="card-title">${isCn ? '亮屏时间' : 'Screen Time'} ${rangeLabel(appsData.min_ts, appsData.max_ts, tzMin, isCn)}</div>
-<table><thead><tr><th>${al}</th><th>${isCn ? '前台' : 'FG'}</th><th>${isCn ? '后台' : 'BG'}</th></tr></thead><tbody>${appRows}</tbody></table></div>
+<table><thead><tr><th>${al}</th><th class="sortable" data-type="num">${isCn ? '前台' : 'FG'}</th><th class="sortable" data-type="num">${isCn ? '后台' : 'BG'}</th></tr></thead><tbody>${appRows}</tbody></table></div>
 </div>
 <div class="card-grid" style="margin-top:10px">
 <div class="card"><div class="card-title">${isCn ? '内存峰值' : 'Peak Memory'}</div>
 <div class="stat-sub" style="margin-bottom:8px">${isCn ? '日志期间观测到的峰值' : 'Peak observed during logging'}</div>
-<table><thead><tr><th>${al}</th><th>${isCn ? '峰值' : 'Peak'}</th></tr></thead><tbody>${memRows || `<tr><td colspan=2 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
+<table><thead><tr><th>${al}</th><th class="sortable" data-type="num">${isCn ? '峰值' : 'Peak'}</th></tr></thead><tbody>${memRows || `<tr><td colspan=2 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
 <div class="card"><div class="card-title">${isCn ? '网络流量' : 'Network'} ${rangeLabel(netData.min_ts, netData.max_ts, tzMin, isCn)}</div>
-<table><thead><tr><th>${al}</th><th>WiFi</th><th>${isCn ? '蜂窝' : 'Cell'}</th></tr></thead><tbody>${netRows || `<tr><td colspan=3 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
+<table><thead><tr><th>${al}</th><th class="sortable" data-type="num">WiFi</th><th class="sortable" data-type="num">${isCn ? '蜂窝' : 'Cell'}</th></tr></thead><tbody>${netRows || `<tr><td colspan=3 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
 </div>
 <div class="card-grid" style="margin-top:10px">
-<div class="card"><div class="card-title">${isCn ? '能耗排行' : 'Energy Usage'}</div>
-<table><thead><tr><th>${al}</th><th>${isCn ? '能耗' : 'Energy'}</th></tr></thead><tbody>${energy.length ? energy.map(e => `<tr><td>${shortName(e.bundle_id)}</td><td>${((e.energy_nj || 0) / 1000).toFixed(1)} mWh</td></tr>`).join('') : `<tr><td colspan=2 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
-<div class="card"><div class="card-title">${isCn ? 'CPU 排行' : 'CPU Usage'}</div>
-<table><thead><tr><th>${al}</th><th>${isCn ? 'CPU时间' : 'CPU'}</th></tr></thead><tbody>${cpu.length ? cpu.map(c => `<tr><td>${shortName(c.name)}</td><td>${fmtSeconds(c.cpu_sec)}</td></tr>`).join('') : `<tr><td colspan=2 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
-</div>
-${brightChart}
-<div class="card-grid" style="margin-top:10px">
-<div class="card"><div class="card-title">${isCn ? 'GPS 使用' : 'Location Usage'}</div>
-<table><thead><tr><th>${al}</th><th>${isCn ? '定位次数' : 'Requests'}</th></tr></thead><tbody>${gpsRows || `<tr><td colspan=2 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
-<div class="card"><div class="card-title">${isCn ? '进程退出' : 'Process Exits'}</div>
-<table><thead><tr><th>${al}</th><th>${isCn ? '次数' : 'Count'}</th><th>${isCn ? '原因' : 'Reason'}</th></tr></thead><tbody>${procRows || `<tr><td colspan=3 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
+<div class="card"><div class="card-title">${isCn ? 'GPS 使用' : 'Location Usage'} ${rangeLabel(gpsData.min_ts, gpsData.max_ts, tzMin, isCn)}</div>
+<table><thead><tr><th>${al}</th><th class="sortable" data-type="num">${isCn ? '定位次数' : 'Requests'}</th></tr></thead><tbody>${gpsRows || `<tr><td colspan=2 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
 </div>
 <div class="footer">iPhone Sysdiagnose Analyzer v${VERSION} · ${generatedAt} (${tzLabel})</div>
 </div>

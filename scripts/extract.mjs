@@ -73,14 +73,84 @@ function parseBatteryTrend(db, maxPoints = 200) {
   );
   if (rows.length === 0) return { items: [], min_ts: null, max_ts: null };
   const step = Math.max(1, Math.floor(rows.length / maxPoints));
+
+  // Load brightness data for screen-on overlay
+  const brightRows = safeQuery(db, `SELECT timestamp, Brightness FROM PLDisplayAgent_EventForward_Display ORDER BY timestamp`);
+  let bi = 0; // brightness index
+
   const items = [];
   for (let i = 0; i < rows.length; i += step) {
+    const ts = rows[i].timestamp;
+    // Find closest brightness record
+    while (bi < brightRows.length - 1 && brightRows[bi + 1].timestamp <= ts) bi++;
+    const screenOn = brightRows.length > 0 ? (brightRows[bi].Brightness > 0) : null;
     items.push({
-      ts: rows[i].timestamp, level: rows[i].Level, voltage: rows[i].Voltage,
+      ts, level: rows[i].Level, voltage: rows[i].Voltage,
       temp: rows[i].Temperature, charging: !!rows[i].IsCharging, amperage: rows[i].Amperage,
+      screen_on: screenOn,
     });
   }
   return { items, min_ts: range?.min_ts, max_ts: range?.max_ts };
+}
+
+function parseBatterySummary(db) {
+  const rows = safeQuery(db,
+    `SELECT timestamp, Level, IsCharging, Amperage
+     FROM PLBatteryAgent_EventBackward_Battery ORDER BY timestamp`
+  );
+  if (rows.length < 2) return {};
+
+  // Group into charge/discharge sessions
+  let sessionStart = 0, sessionCharging = !!rows[0].IsCharging;
+  const sessions = [];
+
+  for (let i = 1; i <= rows.length; i++) {
+    const isCharging = i < rows.length ? !!rows[i].IsCharging : !sessionCharging;
+    if (isCharging !== sessionCharging || i === rows.length) {
+      const dt = (rows[i - 1].timestamp - rows[sessionStart].timestamp) / 3600;
+      const dLevel = rows[i - 1].Level - rows[sessionStart].Level;
+      if (dt >= 0.1) { // at least 6 min session
+        sessions.push({ charging: sessionCharging, dt, dLevel, startLevel: rows[sessionStart].Level, endLevel: rows[i - 1].Level });
+      }
+      sessionStart = i;
+      sessionCharging = isCharging;
+    }
+  }
+
+  let totalDischargePct = 0, totalDischargeH = 0;
+  let totalChargePct = 0, totalChargeH = 0;
+  let chargeSessions = 0;
+  const dischargeRates = [], chargeRates = [];
+
+  for (const s of sessions) {
+    if (s.charging && s.dLevel > 0) {
+      totalChargePct += s.dLevel;
+      totalChargeH += s.dt;
+      chargeSessions++;
+      chargeRates.push(s.dLevel / s.dt);
+    } else if (!s.charging && s.dLevel < 0) {
+      totalDischargePct += Math.abs(s.dLevel);
+      totalDischargeH += s.dt;
+      dischargeRates.push(Math.abs(s.dLevel) / s.dt);
+    }
+  }
+
+  const spanDays = Math.max(1, (rows[rows.length - 1].timestamp - rows[0].timestamp) / 86400);
+  const avgDischargePerDay = Math.round(totalDischargePct / spanDays * 10) / 10;
+  const median = arr => { if (!arr.length) return 0; const s = [...arr].sort((a,b) => a-b); const m = Math.floor(s.length/2); return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
+  const avg = arr => arr.length ? Math.round(arr.reduce((a,b) => a+b, 0) / arr.length * 10) / 10 : 0;
+
+  return {
+    span_days: Math.round(spanDays * 10) / 10,
+    avg_discharge_pct_per_day: avgDischargePerDay,
+    avg_discharge_rate_pct_h: avg(dischargeRates),
+    avg_charge_rate_pct_h: avg(chargeRates),
+    max_discharge_rate_pct_h: dischargeRates.length ? Math.round(Math.max(...dischargeRates) * 10) / 10 : 0,
+    max_charge_rate_pct_h: chargeRates.length ? Math.round(Math.max(...chargeRates) * 10) / 10 : 0,
+    total_discharge_pct: Math.round(totalDischargePct),
+    total_charge_pct: Math.round(totalChargePct),
+    charge_sessions: chargeSessions,
+  };
 }
 
 // ─── NAND SMART ─────────────────────────────────────────────────────────────
@@ -393,6 +463,7 @@ function extractAll(baseDir, maxPoints = 200) {
     try {
       data.battery = parseBattery(db);
       data.battery_trend = parseBatteryTrend(db, maxPoints);
+      data.battery_summary = parseBatterySummary(db);
       data.device_config = parseDeviceConfig(db);
       data.usage_summary = parseUsageSummary(db);
       data.app_nand_writers = parseAppNandWriters(db);
