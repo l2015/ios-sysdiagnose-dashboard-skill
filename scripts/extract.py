@@ -266,41 +266,83 @@ def parse_network_usage(conn: sqlite3.Connection, limit: int = 15) -> list[dict]
         return []
 
 
-def parse_crashes(parsed_dir: str) -> dict:
-    """Categorize crash log entries."""
-    crash_file = os.path.join(parsed_dir, "crashlogs.jsonl")
-    if not os.path.exists(crash_file):
-        return {"total": 0}
-
-    counts = {"jetsam": 0, "safari": 0, "disk_writes": 0, "cpu_resource": 0, "sfa": 0, "other": 0}
+def parse_crashes(base_dir: str, parsed_dir: str | None = None) -> dict:
+    """Categorize crash log entries from raw .ips files in crashes_and_spins/."""
+    crash_dir = os.path.join(base_dir, "crashes_and_spins")
+    counts = {"jetsam": 0, "safari": 0, "disk_writes": 0, "cpu_resource": 0, "sfa": 0, "other": 0, "details": []}
     total = 0
 
-    with open(crash_file) as f:
-        for line in f:
-            if not line.strip():
+    # Parse raw .ips files directly (no SAF dependency)
+    if os.path.isdir(crash_dir):
+        for fname in sorted(os.listdir(crash_dir)):
+            if not fname.endswith(".ips") or fname.startswith("._"):
                 continue
             total += 1
-            try:
-                entry = json.loads(line)
-                name = entry.get("data", {}).get("name", "")
-            except json.JSONDecodeError:
-                continue
+            fname_lower = fname.lower()
 
-            if "Jetsam" in name:
+            if "jetsam" in fname_lower:
                 counts["jetsam"] += 1
-            elif "Safari" in name:
+            elif "safari" in fname_lower or "excuserfault_mobilesafari" in fname_lower:
                 counts["safari"] += 1
-            elif "diskwrites" in name.lower():
+            elif "diskwrites" in fname_lower or "disk_writes" in fname_lower:
                 counts["disk_writes"] += 1
-            elif "cpu_resource" in name.lower():
+                # Extract app name from filename: "AppName.diskwrites_resource-..."
+                app = fname.split(".")[0]
+                counts["details"].append({"type": "disk_writes", "app": app, "file": fname})
+            elif "cpu_resource" in fname_lower:
                 counts["cpu_resource"] += 1
-            elif "SFA-" in name:
+            elif fname.startswith("SFA-"):
                 counts["sfa"] += 1
             else:
                 counts["other"] += 1
 
     counts["total"] = total
     return counts
+
+
+def parse_app_exits(conn: sqlite3.Connection, limit: int = 15) -> list[dict]:
+    """Extract app exit reasons (crash/jetsam/watchdog)."""
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT Identifier, COUNT(*) as cnt, Reason "
+            "FROM PLApplicationAgent_EventPoint_ApplicationExitReason "
+            "WHERE Identifier IS NOT NULL AND Identifier != '' "
+            "GROUP BY Identifier, Reason ORDER BY cnt DESC LIMIT ?",
+            (limit,),
+        )
+        rows = cur.fetchall()
+        reason_map = {0: "正常退出", 1: "Jetsam内存回收", 2: "看门狗超时", 3: "崩溃"}
+        return [
+            {
+                "bundle_id": r[0],
+                "count": r[1],
+                "reason_code": r[2],
+                "reason": reason_map.get(r[2], f"未知({r[2]})"),
+            }
+            for r in rows
+        ]
+    except sqlite3.OperationalError:
+        return []
+
+
+def parse_process_exits(conn: sqlite3.Connection, limit: int = 15) -> list[dict]:
+    """Extract process exit events with memory pressure info."""
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT ProcessName, COUNT(*) as cnt, ReasonNamespace "
+            "FROM PLProcessMonitorAgent_EventPoint_ProcessExit "
+            "WHERE ProcessName IS NOT NULL AND ProcessName != '' "
+            "GROUP BY ProcessName ORDER BY cnt DESC LIMIT ?",
+            (limit,),
+        )
+        return [
+            {"name": r[0], "count": r[1], "namespace": r[2]}
+            for r in cur.fetchall()
+        ]
+    except sqlite3.OperationalError:
+        return []
 
 
 def parse_vpn_extensions(parsed_dir: str) -> list[dict]:
@@ -394,16 +436,22 @@ def bundle_display_name(bundle_id: str) -> str:
     return parts[-1] if parts else bundle_id
 
 
-def extract_all(base_dir: str, parsed_dir: str, max_points: int = 200) -> dict:
+def extract_all(base_dir: str, parsed_dir: str | None = None, max_points: int = 200) -> dict:
     """Run full extraction pipeline and return structured data dict."""
     data = {}
 
-    # System info (no DB needed)
-    data["system"] = parse_system_info(parsed_dir)
-    data["crashes"] = parse_crashes(parsed_dir)
-    data["vpn_extensions"] = parse_vpn_extensions(parsed_dir)
+    # Raw data (no SAF/DB needed)
+    data["crashes"] = parse_crashes(base_dir, parsed_dir)
     data["partitions"] = parse_partitions(base_dir)
     data["nand_smart"] = parse_nand_smart(base_dir)
+
+    # SAF parsed data (optional)
+    if parsed_dir and os.path.isdir(parsed_dir):
+        data["system"] = parse_system_info(parsed_dir)
+        data["vpn_extensions"] = parse_vpn_extensions(parsed_dir)
+    else:
+        data["system"] = {}
+        data["vpn_extensions"] = []
 
     # PowerLog database
     pl = find_powerlog(base_dir)
@@ -421,6 +469,8 @@ def extract_all(base_dir: str, parsed_dir: str, max_points: int = 200) -> dict:
             data["brightness_trend"] = parse_brightness_trend(conn)
             data["gps_usage"] = parse_gps_usage(conn)
             data["network_usage"] = parse_network_usage(conn)
+            data["app_exits"] = parse_app_exits(conn)
+            data["process_exits"] = parse_process_exits(conn)
         finally:
             conn.close()
 
@@ -435,7 +485,7 @@ def main():
         epilog="Output is JSON to stdout. Redirect to a file for later use.",
     )
     parser.add_argument("base_dir", help="Extracted sysdiagnose directory (contains logs/, ASPSnapshots/, etc.)")
-    parser.add_argument("parsed_dir", help="SAF parsed data directory (contains crashlogs.jsonl, sys.jsonl, etc.)")
+    parser.add_argument("parsed_dir", nargs="?", default=None, help="SAF parsed data directory (optional)")
     parser.add_argument("--max-points", type=int, default=200, help="Max data points for time series (default: 200)")
     parser.add_argument("-o", "--output", help="Output file (default: stdout)")
 
@@ -443,7 +493,7 @@ def main():
 
     if not os.path.isdir(args.base_dir):
         parser.error(f"Base directory not found: {args.base_dir}")
-    if not os.path.isdir(args.parsed_dir):
+    if args.parsed_dir and not os.path.isdir(args.parsed_dir):
         parser.error(f"Parsed directory not found: {args.parsed_dir}")
 
     data = extract_all(args.base_dir, args.parsed_dir, args.max_points)

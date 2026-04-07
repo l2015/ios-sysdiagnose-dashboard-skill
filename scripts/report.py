@@ -8,7 +8,7 @@ import json
 import sys
 from datetime import datetime, timezone
 
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 
 
 def fmt_datetime(ts: float) -> str:
@@ -104,13 +104,9 @@ def short_name(bundle_id: str) -> str:
         return "未知"
     if bundle_id in APP_NAMES:
         return APP_NAMES[bundle_id]
+    # Fallback: last segment, truncated
     parts = bundle_id.split(".")
-    if len(parts) >= 2:
-        for key, name in APP_NAMES.items():
-            kp = key.split(".")
-            if len(kp) >= 2 and kp[0] == parts[0] and kp[1] == parts[1]:
-                return name
-    return parts[-1][:12] if parts else bundle_id
+    return parts[-1][:16] if parts else bundle_id
 
 
 def detect_language(data: dict) -> str:
@@ -338,6 +334,7 @@ def generate_report(data: dict) -> str:
     battery = data.get("battery", {})
     nand = data.get("nand_smart", {})
     crashes = data.get("crashes", {})
+    app_exits = data.get("app_exits", [])
     writers = data.get("app_nand_writers", [])[:8]
     apps = data.get("app_screen_time", [])[:8]
     mem = data.get("app_memory", [])[:8]
@@ -394,8 +391,8 @@ def generate_report(data: dict) -> str:
         (f"{health_pct}%", "电池健康" if is_cn else "Battery", h_c),
         (str(cycles), "充电循环" if is_cn else "Cycles", None),
         (f"{nand_remain}%", "闪存剩余" if is_cn else "NAND Left", n_c),
-        (f"{power_hours//24}天/{total_boots}次" if is_cn else f"{power_hours//24}d/{total_boots}x", "通电/开机" if is_cn else "On/Boots", None),
-        (str(total_crashes), "崩溃" if is_cn else "Crashes", "#ff3b30" if total_crashes > 50 else None),
+        (f"{total_crashes}", "日志崩溃" if is_cn else "Crashes", "#ff3b30" if total_crashes > 20 else None),
+        (f"{len(app_exits)}项", "应用退出" if is_cn else "App Exits", None),
     ]
     kpi_html = '<div class="kpi-row">'
     for val, lbl, color in kpi_items:
@@ -436,13 +433,14 @@ def generate_report(data: dict) -> str:
     <div class="stat-sub">{"剩余寿命" if is_cn else "Remaining"}</div>
     <div class="bar"><div style="width:{nand_remain}%;background:{n_c}"></div></div>
     <div style="margin-top:8px">
-    <div class="stat-row"><span class="k">{"主机写入" if is_cn else "Host write"}</span><span class="v">{hw_tb:.1f} TB</span></div>
-    <div class="stat-row"><span class="k">{"主机读取" if is_cn else "Host read"}</span><span class="v">{hr_tb:.1f} TB</span></div>
-    <div class="stat-row"><span class="k">{"闪存写入" if is_cn else "NAND write"}</span><span class="v">{nw_tb:.1f} TB</span></div>
-    <div class="stat-row"><span class="k">{"闪存读取" if is_cn else "NAND read"}</span><span class="v">{nr_tb:.1f} TB</span></div>
-    <div class="stat-row"><span class="k">PE {"擦写" if is_cn else "cycles"}{T("Program-Erase: NAND闪存单元可承受的擦写次数上限。TLC颗粒典型寿命约3000次，当前已用" + str(pe_pct) + "%" if is_cn else "Program-Erase: max erase cycles for NAND cells. TLC typical lifespan ~3000, currently " + str(pe_pct) + "% used")}</span><span class="v">{pe} / {eol} ({pe_pct}%)</span></div>
-    <div class="stat-row"><span class="k">{"坏块" if is_cn else "Bad"}{T("坏块: NAND中标记为不可用的存储块。出厂坏块在正常范围内，增长坏块表示闪存老化" if is_cn else "Bad blocks: unusable NAND blocks. Factory defects are normal, grown bad blocks indicate aging")}</span><span class="v">{nand.get("grown_bad_blocks",0)} / {nand.get("factory_bad_blocks",0)}</span></div>
-    <div class="stat-row"><span class="k">WAF{T("写入放大: 实际闪存写入量/主机写入量。1.0=理想无额外开销，当前" + str(nand.get("write_amp","?")) if is_cn else "Write Amplification: actual NAND writes / host writes. 1.0=ideal, current " + str(nand.get("write_amp","?")))}</span><span class="v">{nand.get("write_amp","N/A")}</span></div>
+    <div class="stat-row"><span class="k">{"主机写入" if is_cn else "Host write"}{T("iOS系统请求写入的数据量。你保存照片、安装App等操作都算在这里" if is_cn else "Data written as requested by iOS (photos, app installs, etc.)")}</span><span class="v">{hw_tb:.1f} TB</span></div>
+    <div class="stat-row"><span class="k">{"主机读取" if is_cn else "Host read"}{T("iOS系统请求读取的数据量" if is_cn else "Data read as requested by iOS")}</span><span class="v">{hr_tb:.1f} TB</span></div>
+    <div class="stat-row"><span class="k">{"闪存写入" if is_cn else "NAND write"}{T("闪存芯片实际写入的物理数据量，因垃圾回收和磨损均衡机制，通常大于主机写入量" if is_cn else "Physical data written to NAND chips, typically exceeds host writes due to garbage collection")}</span><span class="v">{nw_tb:.1f} TB</span></div>
+    <div class="stat-row"><span class="k">{"闪存读取" if is_cn else "NAND read"}{T("闪存芯片实际读取的物理数据量" if is_cn else "Physical data read from NAND chips")}</span><span class="v">{nr_tb:.1f} TB</span></div>
+    <div class="stat-row"><span class="k">PE {"擦写" if is_cn else ""}{T("闪存每个存储单元可擦除重新写入的次数。TLC闪存典型寿命约3000次，到达后该单元可能失效。当前已用" + str(pe_pct) + "%，剩余" + str(round((1-pe_pct/100)*eol)) + "次" if is_cn else "Program-Erase cycles per NAND cell. TLC typical lifespan ~3000. Currently " + str(pe_pct) + "% used")}</span><span class="v">{pe} / {eol} ({pe_pct}%)</span></div>
+    <div class="stat-row"><span class="k">{"坏块" if is_cn else "Bad"}{T("NAND中标记为不可用的存储块。出厂坏块是生产时检测到的缺陷，属于正常范围。增长坏块是在使用中新增的，表示闪存老化" if is_cn else "Blocks marked unusable. Factory defects are normal. Grown bad blocks indicate aging")}</span><span class="v">{nand.get("grown_bad_blocks",0)} {"增长" if is_cn else "grown"} / {nand.get("factory_bad_blocks",0)} {"出厂" if is_cn else "factory"}</span></div>
+    <div class="stat-row"><span class="k">WAF{T("写入放大系数 = 闪存实际写入量 ÷ 主机写入量。因为闪存必须先擦除整个块才能写入新数据（就像擦黑笔字要整面擦），所以实际写入量总是大于你请求的量。1.0=完美无浪费，当前" + str(nand.get("write_amp","?")) + "意味着每写1TB数据闪存实际写" + str(nand.get("write_amp","?")) + "TB" if is_cn else "Write Amplification = NAND writes / host writes. Flash must erase whole blocks before writing (like erasing a whole page to fix one word). 1.0=perfect, current " + str(nand.get("write_amp","?")))}</span><span class="v">{nand.get("write_amp","N/A")}</span></div>
+    <div class="stat-row"><span class="k">{"累计通电" if is_cn else "Cumulative on"}{T("自上次抹掉所有内容后，设备的累计通电时间（关机期间不计入）和总开机次数。" + str(power_hours//24) + "天是累计值，不是连续不关机" if is_cn else "Cumulative powered-on time since last erase, and total boot count. " + str(power_hours//24) + "d is cumulative, not continuous")}</span><span class="v">{power_hours}h ({power_hours//24}天) / {total_boots}{"次开机" if is_cn else " boots"}</span></div>
     </div></div>'''
 
     # Battery chart
@@ -482,6 +480,44 @@ def generate_report(data: dict) -> str:
 
     na = "暂无数据" if is_cn else "N/A"
     al = "应用" if is_cn else "App"
+    fg_lbl = "前台" if is_cn else "FG"
+    bg_lbl = "后台" if is_cn else "BG"
+
+    # Crash analysis
+    jetsam = crashes.get("jetsam", 0)
+    safari_crashes = crashes.get("safari", 0)
+    disk_w = crashes.get("disk_writes", 0)
+    cpu_r = crashes.get("cpu_resource", 0)
+    sfa = crashes.get("sfa", 0)
+    crash_details = crashes.get("details", [])
+    crash_detail_str = ""
+    if crash_details:
+        crash_detail_str = "".join(f'<div class="stat-row"><span class="k">{d["app"]}</span><span class="v">{"磁盘写入超限" if is_cn else "Disk write exceed"}</span></div>' for d in crash_details if d.get("app"))
+
+    crash_card = f'''<div class="card"><div class="card-title">{"崩溃分析（日志文件）" if is_cn else "Crash Analysis (Log Files)"}</div>
+    <div class="stat-big" style="color:{"#ff3b30" if total_crashes > 20 else "#ff9f0a" if total_crashes > 5 else "var(--sec)"}">{total_crashes}</div>
+    <div class="stat-sub">{"48小时内" if is_cn else "In 48h"}</div>
+    <div style="margin-top:8px">
+    <div class="stat-row"><span class="k">Jetsam {"内存回收" if is_cn else "memory kill"}</span><span class="v" style="color:{"#ff3b30" if jetsam > 10 else "inherit"}">{jetsam}</span></div>
+    <div class="stat-row"><span class="k">Safari {"崩溃" if is_cn else "crash"}</span><span class="v">{safari_crashes}</span></div>
+    <div class="stat-row"><span class="k">{"磁盘写入超限" if is_cn else "Disk write exceed"}</span><span class="v">{disk_w}</span></div>
+    <div class="stat-row"><span class="k">CPU {"超限" if is_cn else "resource"}</span><span class="v">{cpu_r}</span></div>
+    <div class="stat-row"><span class="k">SFA {"安全事件" if is_cn else "security"}</span><span class="v">{sfa}</span></div>
+    <div class="stat-row"><span class="k">{"其他" if is_cn else "Other"}</span><span class="v">{crashes.get("other", 0)}</span></div>
+    {crash_detail_str}
+    </div></div>'''
+
+    # App exits (Jetsam kills by app)
+    app_exit_card = ""
+    jetsam_exits = [e for e in app_exits if e.get("reason_code") == 1][:8]
+    if jetsam_exits:
+        rows = ""
+        for e in jetsam_exits:
+            rows += f'<tr><td>{short_name(e["bundle_id"])}</td><td style="font-weight:600;color:#ff9f0a">{e["count"]}</td></tr>'
+        app_exit_card = f'''<div class="card"><div class="card-title">{"Jetsam 内存回收排行" if is_cn else "Jetsam Memory Kills"}</div>
+        <div class="stat-sub" style="margin-bottom:8px">{"系统因内存不足强制回收的次数（累计）" if is_cn else "Times system killed app to reclaim memory (cumulative)"}</div>
+        <table><thead><tr><th>{al}</th><th>{"次数" if is_cn else "Count"}</th></tr></thead><tbody>{rows}</tbody></table></div>'''
+
 
     html = f'''<!DOCTYPE html>
 <html lang="{"zh-CN" if is_cn else "en"}">
@@ -498,6 +534,10 @@ def generate_report(data: dict) -> str:
 {kpi_html}
 <div class="card-grid">{bat_card}{nand_card}</div>
 <div class="card-grid" style="margin-top:10px">{bat_chart}</div>
+<div class="card-grid" style="margin-top:10px">
+{crash_card}
+{app_exit_card if app_exit_card else '<div class="card"><div class="card-title">' + ("Jetsam 内存回收" if is_cn else "Jetsam Kills") + '</div><div class="stat-sub">' + na + '</div></div>'}
+</div>
 <div class="card-grid" style="margin-top:10px">
 <div class="card"><div class="card-title">{"存储写入排行（累计）" if is_cn else "NAND Writes (Cumulative)"}</div>
 <table><thead><tr><th>{al}</th><th>{"写入" if is_cn else "Writes"}</th><th></th></tr></thead><tbody>{writer_rows}</tbody></table></div>
