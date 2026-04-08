@@ -94,13 +94,18 @@ const libScript = '<script>' + pakoJs + '</script>\n';
 // Inline sql.js (the library itself, not the WASM — that's embedded in extractFixed via base64)
 const sqlScript = '<script>' + sqlJs + '</script>\n';
 
+// Escape <script> and </script> inside generated report HTML to prevent breaking outer script tag
+const generateReportSafe = generateReportSrc
+  .replace(/<script>/gi, '<\\/script>')
+  .replace(/<\/script>/gi, '<\\/script>');
+
 // App script
 const chartJsEscaped = JSON.stringify(chartJs);
 const appScript = '<script>\n' +
   vfsJs + '\n\n' +
   extractFixed + '\n\n' +
   helpers.join('\n\n') + '\n\n' +
-  generateReportSrc + '\n\n' +
+  generateReportSafe + '\n\n' +
   'const CHART_JS_DATA = ' + chartJsEscaped + ';\n\n' +
   '(function() {\n' +
   '  var dropZone = document.getElementById("dropZone");\n' +
