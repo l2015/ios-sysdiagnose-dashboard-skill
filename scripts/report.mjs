@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.19';
+const VERSION = '0.2.20';
 
 // ─── Device Model Lookup ────────────────────────────────────────────────────
 // ProductType → 友好名称，覆盖 iPhone/iPad/Watch/Vision/TV/HomePod/iPod
@@ -355,8 +355,8 @@ th.sortable.desc::after{content:' ↓';opacity:.8}
 .period-btn{background:var(--border);border:none;color:var(--sec);font-size:.72em;padding:4px 12px;border-radius:8px;cursor:pointer;font-weight:600;letter-spacing:.3px;transition:background .15s,color .15s}
 .period-btn:hover{color:var(--text)}
 .period-btn.active{background:var(--green);color:#000}
-.crash-toggle{cursor:pointer;color:var(--blue);font-size:.75em;font-style:normal;margin-left:4px;border:1px solid var(--blue);opacity:.6;transition:opacity .15s}
-.crash-toggle:hover{opacity:1}
+.crash-toggle{cursor:pointer;color:var(--blue);font-size:.95em;font-style:normal;margin:0 8px;border:1.5px solid var(--blue);opacity:.7;transition:opacity .15s;padding:1px 5px;border-radius:6px;vertical-align:middle}
+.crash-toggle:hover{opacity:1;background:rgba(10,132,255,.1)}
 .crash-apps{padding:4px 0 4px 16px;border-left:2px solid var(--border);margin:0 0 4px 4px;font-size:.85em}
 body.debug .stat-row,body.debug .kpi,body.debug .bat-stat{cursor:help;outline:1px dashed transparent;transition:outline-color .15s}
 body.debug .stat-row:hover,body.debug .kpi:hover,body.debug .bat-stat:hover{outline-color:rgba(10,132,255,.4)}
@@ -405,7 +405,9 @@ svg.addEventListener('mousemove',function(e){var r=svg.getBoundingClientRect(),s
 svg.addEventListener('mouseleave',function(){tt.setAttribute('visibility','hidden')});
 svg.addEventListener('touchmove',function(e){e.preventDefault();var touch=e.touches[0];var r=svg.getBoundingClientRect(),sw=svg.viewBox.baseVal.width;handleMove((touch.clientX-r.left)*sw/r.width)},{passive:false});
 svg.addEventListener('touchend',function(){setTimeout(function(){tt.setAttribute('visibility','hidden')},1500)})}
-document.querySelectorAll('.chart-svg').forEach(initChart)})();
+document.querySelectorAll('.chart-svg').forEach(initChart);
+window._initChart=initChart;
+})();
 
 // Crash toggle
 window.toggleCrash=function(el){var id=el.getAttribute('data-target');var el2=document.getElementById(id);if(!el2)return;var vis=el2.style.display!=='none';el2.style.display=vis?'none':'block';el.textContent=vis?'▸':'▾'};
@@ -443,7 +445,7 @@ var wy=ty(20);var warn='<line x1="'+pl+'" y1="'+wy.toFixed(1)+'" x2="'+(pl+cw)+'
 var hover=pts.map(function(p){var x=tx(p.t),y=ty(p.l||0);var v=(p.l||0).toFixed(1);var dd=new Date((p.t+td.tz*60)*1000);var ts=dd.getUTCFullYear()+'-'+String(dd.getUTCMonth()+1).padStart(2,'0')+'-'+String(dd.getUTCDate()).padStart(2,'0')+' '+String(dd.getUTCHours()).padStart(2,'0')+':'+String(dd.getUTCMinutes()).padStart(2,'0')+':'+String(dd.getUTCSeconds()).padStart(2,'0');return'<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="8" fill="transparent" class="hover-point" data-val="'+v+'" data-time="'+ts+'" data-unit="%"/>'}).join('');
 var svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:'+H+'px" xmlns="http://www.w3.org/2000/svg" class="chart-svg" id="'+chartId+'"><defs><linearGradient id="g_'+chartId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#34c759" stop-opacity=".12"/><stop offset="100%" stop-color="#34c759" stop-opacity="0"/></linearGradient></defs>'+bandsS+timeS+yS+'<line x1="'+pl+'" y1="'+pt+'" x2="'+pl+'" y2="'+(pt+ch)+'" stroke="#3a3a3c" stroke-width="1"/><line x1="'+pl+'" y1="'+(pt+ch)+'" x2="'+(pl+cw)+'" y2="'+(pt+ch)+'" stroke="#3a3a3c" stroke-width="1"/><path d="'+fill+'" fill="url(#g_'+chartId+')"/><path d="'+path+'" fill="none" stroke="#34c759" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'+warn+hover+'<g id="tt_'+chartId+'" class="chart-tooltip" visibility="hidden" pointer-events="none"><line id="ttl_'+chartId+'" x1="0" y1="'+pt+'" x2="0" y2="'+(pt+ch)+'" stroke="#8e8e93" stroke-width="1" stroke-dasharray="3"/><rect id="ttb_'+chartId+'" x="0" y="0" width="140" height="40" rx="10" fill="#2c2c2e" stroke="#48484a"/><text id="ttv_'+chartId+'" x="0" y="0" fill="#fff" font-size="15" font-weight="700" text-anchor="middle"></text><text id="ttt_'+chartId+'" x="0" y="0" fill="#8e8e93" font-size="11" text-anchor="middle"></text></g></svg>';
 wrap.innerHTML=svg;
-initChart(wrap.querySelector('.chart-svg'));
+window._initChart(wrap.querySelector('.chart-svg'));
 };`;
 
 // ─── Report Generator ───────────────────────────────────────────────────────
@@ -518,8 +520,17 @@ function generateReport(data) {
     const socFriendly = SOC_NAME[devInfo.hardware_platform] || devInfo.hardware_platform;
     deviceInfo.push([isCn ? '芯片' : 'SoC', socFriendly]);
   }
-  if (devCfg.disk_size_gb != null) deviceInfo.push([isCn ? '存储' : 'Storage', `${devCfg.disk_size_gb} GB`]);
-  if (devCfg.free_space_gb != null) deviceInfo.push([isCn ? '可用' : 'Free', `${devCfg.free_space_gb} GB`]);
+  if (devCfg.disk_size_gb != null) {
+    const total = devCfg.disk_size_gb;
+    const free = devCfg.free_space_gb;
+    if (free != null) {
+      const used = total - free;
+      const usedPct = Math.round(used / total * 100);
+      deviceInfo.push([isCn ? '存储' : 'Storage', `${used}/${total} GB (${usedPct}%)`]);
+    } else {
+      deviceInfo.push([isCn ? '存储' : 'Storage', `${total} GB`]);
+    }
+  }
 
   // Usage summary
   if (usageSum.screen_on_sec > 0) {
@@ -614,7 +625,20 @@ function generateReport(data) {
     }
     if (bandStart) bands.push({ start: bandStart, end: trend[trend.length - 1].ts, color: '#34c759', opacity: 0.06 });
 
-    const svg = interactiveChartSvg(trend, 'level', { height: 200, color: '#34c759', unit: '%', yMax: 100, warnLine: 20, chartId: 'bat', tzOffsetMinutes: tzMin, bands });
+    // 默认展示最近 24h
+    const spanSec = trend.length ? trend[trend.length-1].ts - trend[0].ts : 0;
+    const showDay = spanSec > 86400;
+    const showWeek = spanSec > 86400*7;
+    let renderTrend = trend;
+    let renderBands = bands;
+    if (showDay) {
+      const cutoff = trend[trend.length - 1].ts - 86400;
+      renderTrend = trend.filter(p => p.ts >= cutoff);
+      renderBands = bands.filter(b => b.end >= cutoff).map(b => ({ ...b, start: Math.max(b.start, cutoff) }));
+    }
+    if (renderTrend.length < 2) { renderTrend = trend; renderBands = bands; }
+
+    const svg = interactiveChartSvg(renderTrend, 'level', { height: 200, color: '#34c759', unit: '%', yMax: 100, warnLine: 20, chartId: 'bat', tzOffsetMinutes: tzMin, bands: renderBands });
     const bSum = data.battery_summary || {};
     let statsHtml = '';
     if (bSum.avg_discharge_pct_per_day) {
@@ -627,9 +651,6 @@ function generateReport(data) {
     }
     const legendHtml = bands.length ? `<div style="margin-top:6px;font-size:.72em;color:var(--ter)"><span style="display:inline-block;width:12px;height:8px;background:#34c759;opacity:.3;border-radius:2px;vertical-align:middle;margin-right:4px"></span>${isCn ? '绿色背景 = 亮屏' : 'Green = screen on'}</div>` : '';
     const trendJson = JSON.stringify(trend.map(p => ({t:p.ts, l:p.level, s:p.screen_on?1:0, c:p.charging?1:0})));
-    const spanSec = trend.length ? trend[trend.length-1].ts - trend[0].ts : 0;
-    const showDay = spanSec > 86400;
-    const showWeek = spanSec > 86400*7;
     let periodBtns = '';
     if (showDay || showWeek) {
       periodBtns = '<div class="period-btns">';

@@ -1,6 +1,6 @@
 # iPhone Sysdiagnose Analyzer
 
-> OpenClaw Skill · 版本 0.2.19
+> OpenClaw Skill · 版本 0.2.20
 
 分析 iPhone sysdiagnose 诊断归档文件，提取电池健康、闪存状态、应用使用、崩溃日志等数据，生成自包含的 HTML 报告。
 
@@ -95,6 +95,11 @@ ios-sysdiagnose-dashboard-skill/
 ```
 
 ## 更新日志
+
+### v0.2.20
+- 崩溃展开按钮增大、间距优化
+- 存储显示合并为"已用/总(百分比)"格式
+- 电量趋势默认展示最近24h，修复切换后悬浮提示失效
 
 ### v0.2.19
 - SoC 名称简化为商业型号（A15/M1 等），去除微架构前缀
