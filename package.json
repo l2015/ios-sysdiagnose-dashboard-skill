@@ -1,6 +1,6 @@
 {
   "name": "ios-sysdiagnose-dashboard-skill",
-  "version": "0.2.23",
+  "version": "0.2.24",
   "description": "Analyze iPhone sysdiagnose archives — battery, NAND, apps, crashes → HTML report",
   "license": "MIT",
   "type": "module",

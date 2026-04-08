@@ -18,10 +18,20 @@ function extractStrings(buf, minLength = 4) {
 }
 
 function findPowerlog(vfs, baseDir) {
+  // Primary: standard path
   const plDir = baseDir + '/logs/powerlogs';
-  if (!vfs.existsSync(plDir)) return null;
-  for (const f of vfs.readdirSync(plDir)) {
-    if (f.endsWith('.PLSQL')) return plDir + '/' + f;
+  if (vfs.existsSync(plDir)) {
+    for (const f of vfs.readdirSync(plDir)) {
+      if (f.endsWith('.PLSQL')) return plDir + '/' + f;
+    }
+  }
+  // Fallback: search entire VFS for any .PLSQL file (handles path variations)
+  for (const path of vfs.files.keys()) {
+    if (path.endsWith('.PLSQL') && path.includes('powerlog')) return path;
+  }
+  // Last resort: any .PLSQL anywhere
+  for (const path of vfs.files.keys()) {
+    if (path.endsWith('.PLSQL')) return path;
   }
   return null;
 }
@@ -251,6 +261,45 @@ function parseAppExits(db, limit = 15) {
   };
 }
 
+function parseBrightnessTrend(db, maxPoints = 150) {
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLDisplayAgent_EventForward_Display`);
+  const rows = safeQuery(db, `SELECT timestamp, Brightness FROM PLDisplayAgent_EventForward_Display ORDER BY timestamp`);
+  if (rows.length === 0) return { items: [], min_ts: null, max_ts: null };
+  const step = Math.max(1, Math.floor(rows.length / maxPoints));
+  const items = [];
+  for (let i = 0; i < rows.length; i += step) {
+    items.push({ ts: rows[i].timestamp, brightness: rows[i].Brightness });
+  }
+  return { items, min_ts: range?.min_ts, max_ts: range?.max_ts };
+}
+
+function parseAppEnergy(db, limit = 25) {
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLDuetService_Aggregate_DuetEnergyAccumulator`);
+  return {
+    items: safeQuery(db, `SELECT BundleID, SUM(Energy) as total_energy FROM PLDuetService_Aggregate_DuetEnergyAccumulator WHERE BundleID IS NOT NULL AND BundleID != '' GROUP BY BundleID ORDER BY total_energy DESC LIMIT ?`, [limit])
+      .map(r => ({ bundle_id: r.BundleID, energy_nj: r.total_energy })),
+    min_ts: range?.min_ts, max_ts: range?.max_ts,
+  };
+}
+
+function parseAppCpu(db, limit = 20) {
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLCoalitionAgent_EventInterval_CoalitionInterval`);
+  return {
+    items: safeQuery(db, `SELECT LaunchdName, SUM(cpu_time) as cpu, SUM(bytesread) as br, SUM(byteswritten) as bw FROM PLCoalitionAgent_EventInterval_CoalitionInterval WHERE LaunchdName IS NOT NULL AND LaunchdName != '' GROUP BY LaunchdName ORDER BY cpu DESC LIMIT ?`, [limit])
+      .map(r => ({ name: r.LaunchdName, cpu_sec: r.cpu || 0, bytes_read: r.br || 0, bytes_written: r.bw || 0 })),
+    min_ts: range?.min_ts, max_ts: range?.max_ts,
+  };
+}
+
+function parseProcessExits(db, limit = 15) {
+  const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLProcessMonitorAgent_EventPoint_ProcessExit`);
+  return {
+    items: safeQuery(db, `SELECT ProcessName, COUNT(*) as cnt, ReasonNamespace FROM PLProcessMonitorAgent_EventPoint_ProcessExit WHERE ProcessName IS NOT NULL AND ProcessName != '' GROUP BY ProcessName ORDER BY cnt DESC LIMIT ?`, [limit])
+      .map(r => ({ name: r.ProcessName, count: r.cnt, namespace: r.ReasonNamespace })),
+    min_ts: range?.min_ts, max_ts: range?.max_ts,
+  };
+}
+
 // ─── Device & System ────────────────────────────────────────────────────────
 
 function detectTimezone(baseDir) {
@@ -314,29 +363,53 @@ function parseUsageSummary(db) {
 
 async function extractAll(vfs, baseDir, maxPoints = 200) {
   const data = {};
+  const diag = []; // diagnostic log
+
   data.timezone = detectTimezone(baseDir);
   data.device_info = parseDeviceInfo(vfs, baseDir);
+  diag.push('VFS files: ' + vfs.files.size + ', dirs: ' + vfs.dirs.size);
+  diag.push('Device: ' + (data.device_info.product_type || 'unknown'));
+
   data.crashes = parseCrashes(vfs, baseDir);
+  diag.push('Crashes: ' + (data.crashes.total ?? 0) + ' (dir exists: ' + vfs.existsSync(baseDir + '/crashes_and_spins') + ')');
+
   data.nand_smart = parseNandSmart(vfs, baseDir);
+  diag.push('NAND: ' + (Object.keys(data.nand_smart).length > 0 ? 'OK' : 'empty'));
 
   const pl = findPowerlog(vfs, baseDir);
+  diag.push('PowerLog: ' + (pl || 'NOT FOUND'));
   if (pl) {
-    const SQL = await initSqlJs({ locateFile: file => `https://sql.js.org/dist/${file}` });
-    const plBuf = vfs.readFileSync(pl);
-    const db = new SQL.Database(plBuf);
     try {
-      data.battery = parseBattery(db);
-      data.battery_trend = parseBatteryTrend(db, maxPoints);
-      data.battery_summary = parseBatterySummary(db);
-      data.device_config = parseDeviceConfig(db);
-      data.usage_summary = parseUsageSummary(db);
-      data.app_nand_writers = parseAppNandWriters(db);
-      data.app_screen_time = parseAppScreenTime(db);
-      data.app_memory = parseAppMemory(db);
-      data.gps_usage = parseGpsUsage(db);
-      data.network_usage = parseNetworkUsage(db);
-      data.app_exits = parseAppExits(db);
-    } finally { db.close(); }
+      const SQL = await initSqlJs({ locateFile: file => `https://sql.js.org/dist/${file}` });
+      const plBuf = vfs.readFileSync(pl);
+      diag.push('PLSQL size: ' + (plBuf ? plBuf.length : 0) + ' bytes');
+      const db = new SQL.Database(plBuf);
+      try {
+        data.battery = parseBattery(db);
+        data.battery_trend = parseBatteryTrend(db, maxPoints);
+        data.battery_summary = parseBatterySummary(db);
+        data.device_config = parseDeviceConfig(db);
+        data.usage_summary = parseUsageSummary(db);
+        data.app_nand_writers = parseAppNandWriters(db);
+        data.app_screen_time = parseAppScreenTime(db);
+        data.app_memory = parseAppMemory(db);
+        data.gps_usage = parseGpsUsage(db);
+        data.network_usage = parseNetworkUsage(db);
+        data.app_exits = parseAppExits(db);
+        data.brightness_trend = parseBrightnessTrend(db);
+        data.app_energy = parseAppEnergy(db);
+        data.app_cpu = parseAppCpu(db);
+        data.process_exits = parseProcessExits(db);
+        diag.push('Battery: ' + (data.battery.health_pct != null ? data.battery.health_pct + '%' : 'empty'));
+        diag.push('Apps: ' + (data.app_screen_time.items?.length || 0) + ' entries');
+      } finally { db.close(); }
+    } catch (e) {
+      diag.push('SQL ERROR: ' + e.message);
+      console.error('[extract]', e);
+    }
   }
+
+  data._diag = diag;
+  console.log('[extract]', diag.join(' | '));
   return data;
 }

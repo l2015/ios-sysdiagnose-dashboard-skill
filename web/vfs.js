@@ -78,6 +78,10 @@ class VFS {
 function parseTar(buffer, vfs) {
   const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
   let offset = 0;
+  // MUST be outside the while loop — 'let' inside the loop creates a new binding each
+  // iteration, so a type 'L' entry that sets longName then continues would lose the value
+  // on the next iteration. Moving it outside lets the long name persist to the next entry.
+  let longName = null;
 
   while (offset < buffer.length - 512) {
     // Check for end of archive (two zero blocks)
@@ -91,14 +95,24 @@ function parseTar(buffer, vfs) {
     }
     if (!name) break;
 
-    // Handle GNU long name (>100 chars, stored in next entry with type 'L')
+    // Read size — support both octal (POSIX) and binary (BSD tar) encoding
     const typeFlag = String.fromCharCode(buffer[offset + 156]);
-    let longName = null;
+    function readEntrySize() {
+      const firstByte = buffer[offset + 124];
+      // Binary size: high bit set (used by BSD tar for large files)
+      if (firstByte & 0x80) {
+        let size = 0;
+        for (let i = 124; i < 136; i++) { size = (size << 8) | buffer[offset + i]; }
+        return size;
+      }
+      // Octal size (standard POSIX)
+      const octal = new TextDecoder().decode(buffer.subarray(offset + 124, offset + 136)).trim();
+      return parseInt(octal, 8) || 0;
+    }
 
     if (typeFlag === 'L') {
       // GNU long name entry — the data block contains the full name
-      const sizeOctal = new TextDecoder().decode(buffer.subarray(offset + 124, offset + 136)).trim();
-      const size = parseInt(sizeOctal, 8);
+      const size = readEntrySize();
       const dataSize = Math.ceil(size / 512) * 512;
       const nameData = buffer.subarray(offset + 512, offset + 512 + size);
       longName = new TextDecoder().decode(nameData).replace(/\0/g, '');
@@ -108,8 +122,7 @@ function parseTar(buffer, vfs) {
 
     // Check for POSIX extended header (type 'x' or 'g')
     if (typeFlag === 'x' || typeFlag === 'g') {
-      const sizeOctal = new TextDecoder().decode(buffer.subarray(offset + 124, offset + 136)).trim();
-      const size = parseInt(sizeOctal, 8);
+      const size = readEntrySize();
       const dataSize = Math.ceil(size / 512) * 512;
 
       // Parse extended header for path
@@ -121,13 +134,13 @@ function parseTar(buffer, vfs) {
       continue;
     }
 
-    // Read size
-    const sizeOctal = new TextDecoder().decode(buffer.subarray(offset + 124, offset + 136)).trim();
-    const size = parseInt(sizeOctal, 8) || 0;
+    // Read size for regular entries
+    const size = readEntrySize();
     const dataSize = Math.ceil(size / 512) * 512;
 
-    // Use long name if available
+    // Use long name if available, then reset for next entry
     const finalName = longName || name;
+    longName = null;
 
     // Regular file (type '0' or '\0')
     if ((typeFlag === '0' || typeFlag === '\0' || typeFlag === ' ') && size > 0) {

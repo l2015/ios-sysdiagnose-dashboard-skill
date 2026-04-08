@@ -1,6 +1,6 @@
 # iPhone Sysdiagnose Analyzer
 
-> OpenClaw Skill · 版本 0.2.23
+> OpenClaw Skill · 版本 0.2.24
 
 分析 iPhone sysdiagnose 诊断归档文件，提取电池健康、闪存状态、应用使用、崩溃日志等数据，生成自包含的 HTML 报告。
 
@@ -89,6 +89,15 @@ ios-sysdiagnose-dashboard-skill/
 ```
 
 ## 更新日志
+
+### v0.2.24
+- 修复浏览器版 tar 解析器致命 bug：`longName` 变量在 `while` 循环体内用 `let` 声明，每次迭代被重置为 `null`，导致 GNU 长文件名（>100字符）丢失
+- 长文件名丢失导致 VFS 中大部分文件路径错误，PowerLog/崩溃日志/App 数据全部无法读取
+- `longName` 移至循环外部声明，使用后显式 `longName = null` 重置
+- 新增 BSD tar binary size 支持（`readEntrySize` 函数，处理高位字节标记的二进制编码大小）
+- `findPowerlog` 新增两级 fallback：先搜整个 VFS 的 powerlog 路径，再搜任意 .PLSQL 文件
+- 浏览器版 `extractAll` 新增诊断日志（`_diag` 字段），PowerLog 未找到时在 UI 显示警告条
+- 补齐浏览器版缺失的提取函数：`parseBrightnessTrend`、`parseAppEnergy`、`parseAppCpu`、`parseProcessExits`
 
 ### v0.2.22
 - 修复 web/build.js helper 提取：`opts = {}` 默认参数中的 `{}` 被误认为函数体花括号，导致 `interactiveChartSvg` 和 `barChartSvg` 两个函数被截断
