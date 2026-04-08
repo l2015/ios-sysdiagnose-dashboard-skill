@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.16';
+const VERSION = '0.2.17';
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
@@ -52,55 +52,34 @@ function fmtSeconds(s) {
 
 // ─── App Name Mapping ───────────────────────────────────────────────────────
 
-const APP_NAMES = {
-  'com.taobao.fleamarket': '淘宝', 'com.taobao.taobao4iphone': '淘宝',
-  'com.ss.iphone.ugc.Aweme': '抖音', 'com.ss.iphone.ugc.Live.lite': '抖音直播',
-  'com.tencent.xin': '微信', 'com.xingin.discover': '小红书',
-  'com.xunmeng.pinduoduo': '拼多多', 'com.apple.mobilesafari': 'Safari',
-  'com.apple.mobilemail': '邮件', 'com.apple.mobilephone': '电话',
-  'com.apple.MobileSMS': '短信', 'com.apple.mobileslideshow': '照片',
-  'com.apple.Music': '音乐', 'com.apple.podcasts': '播客',
-  'com.apple.Maps': '地图', 'com.apple.weather': '天气',
-  'com.apple.mobilecal': '日历', 'com.apple.reminders': '提醒事项',
-  'com.apple.mobilenotes': '备忘录', 'com.apple.AppStore': 'App Store',
-  'com.apple.Preferences': '设置', 'com.apple.camera': '相机',
-  'com.apple.mobiletimer': '时钟', 'com.apple.Health': '健康',
-  'com.apple.Fitness': '健身', 'com.burbn.instagram': 'Instagram',
-  'com.google.chrome.ios': 'Chrome', 'com.spotify.client': 'Spotify',
-  'com.netease.mail': '网易邮箱', 'com.netease.cloudmusic': '网易云音乐',
-  'com.gotokeep.keep': 'Keep', 'com.alipay.iphoneclient': '支付宝',
-  'com.meituan.takeoutnew': '美团', 'com.sina.weibo': '微博',
-  'com.zhihu.ios': '知乎', 'tv.danmaku.bili': 'B站',
-  'searchd': '搜索', 'healthd': '健康守护', 'thermalmonitord': '温度监控',
-  'backboardd': '系统UI', 'mediaserverd': '媒体服务',
-  'locationd': '定位服务', 'wifid': 'WiFi', 'bluetoothd': '蓝牙',
-};
-
+// 从 bundle ID 推断显示名，不写死映射表
+// 规则：取最后一段，如果太短（≤2字符）则取倒数第二段
 function shortName(bundleId) {
   if (!bundleId) return '未知';
-  if (APP_NAMES[bundleId]) return APP_NAMES[bundleId];
+  // 系统守护进程：原样返回（如 searchd, thermalmonitord）
+  if (!bundleId.includes('.')) return bundleId;
+
   const parts = bundleId.split('.');
-  return parts[parts.length - 1].slice(0, 16);
+
+  // Apple 系统组件：去掉 com.apple. 前缀，用剩余部分
+  if (parts.length >= 3 && parts[0] === 'com' && parts[1] === 'apple') {
+    return parts.slice(2).join('.');
+  }
+
+  // 通用域名：取最后一段，太短则取倒数第二段
+  let name = parts[parts.length - 1];
+  if (name.length <= 2 && parts.length >= 3) {
+    name = parts[parts.length - 2];
+  }
+  // 截断过长的名字
+  return name.length > 20 ? name.slice(0, 20) : name;
 }
 
 // ─── Language Detection ─────────────────────────────────────────────────────
 
 function detectLanguage(data, tzOffsetMinutes) {
-  const bundles = new Set();
-  const extractItems = d => (d?.items || d || []);
-  for (const key of ['app_screen_time', 'app_nand_writers', 'app_memory', 'app_energy', 'app_cpu']) {
-    for (const item of extractItems(data[key])) {
-      const bid = item.bundle_id || item.name;
-      if (bid) bundles.add(bid);
-    }
-  }
-  const cnPrefixes = ['com.taobao', 'com.tencent', 'com.ss.iphone', 'com.xingin',
-    'com.xunmeng', 'com.alipay', 'com.sina', 'com.netease',
-    'com.zhihu', 'com.duowan', 'tv.danmaku', 'com.gotokeep', 'com.bilibili', 'com.meituan'];
-  for (const b of bundles) {
-    for (const p of cnPrefixes) { if (b.startsWith(p)) return 'zh'; }
-  }
-  // Fallback: timezone hint (UTC+5 to UTC+9 covers China/Japan/Korea)
+  // 语言检测：纯数据驱动，从时区推断，不写死 App 列表
+  // UTC+5 ~ UTC+9 覆盖中国/日本/韩国/东南亚等中文用户密集区
   if (tzOffsetMinutes >= 300 && tzOffsetMinutes <= 540) return 'zh';
   return 'en';
 }
@@ -405,7 +384,6 @@ function generateReport(data) {
   const appsData = data.app_screen_time || { items: [] };
   const apps = (appsData.items || appsData).slice(0, 8);
   const mem = (data.app_memory || []).slice(0, 8);
-  const devCfg = data.device_config || {};
   const usageSum = data.usage_summary || {};
   const trendData = data.battery_trend || { items: [] };
   const trend = trendData.items || trendData;
@@ -452,27 +430,15 @@ function generateReport(data) {
   let logRange = '';
   if (trend.length) logRange = `${fmtDatetimeFull(trend[0].ts, tzMin)} — ${fmtDatetimeFull(trend[trend.length - 1].ts, tzMin)}`;
 
-  const soc = devCfg.soc || '';
-  const SOC_MAP = {
-    't8101': 'A14 Bionic', 't8103': 'M1', 't6000': 'M1 Pro', 't6001': 'M1 Max', 't6002': 'M1 Ultra',
-    't8110': 'A15 Bionic', 't8112': 'A16 Bionic',
-    't8120': 'A17 Pro', 't8130': 'M4',
-    't6030': 'A18', 't6031': 'A18 Pro',
-  };
-  const MODEL_MAP = {
-    't8101': 'iPhone 12', 't8110': 'iPhone 13 Pro',
-    't8112': 'iPhone 14 Pro', 't8120': 'iPhone 15 Pro',
-    't6030': 'iPhone 16', 't6031': 'iPhone 16 Pro',
-  };
-  const model = MODEL_MAP[soc] || soc;
-  const socName = SOC_MAP[soc] || soc;
-
-  const deviceInfo = [
-    [isCn ? '型号' : 'Model', model],
-    [isCn ? '芯片' : 'SoC', `${socName} (${soc})`],
-    [isCn ? '存储' : 'Storage', `${devCfg.disk_size_gb || '?'} GB`],
-    [isCn ? '可用' : 'Free', `${devCfg.free_space_gb || '?'} GB`],
-  ];
+  // 设备信息：从 remotectl_dumpstate.txt 和 PowerLog 提取，不写死映射
+  const devInfo = data.device_info || {};
+  const devCfg = data.device_config || {};
+  const deviceClass = devInfo.device_class || 'Device';
+  const deviceInfo = [];
+  if (devInfo.product_type) deviceInfo.push([isCn ? '型号' : 'Model', devInfo.product_type]);
+  if (devInfo.hardware_platform) deviceInfo.push([isCn ? '芯片' : 'SoC', devInfo.hardware_platform]);
+  if (devCfg.disk_size_gb != null) deviceInfo.push([isCn ? '存储' : 'Storage', `${devCfg.disk_size_gb} GB`]);
+  if (devCfg.free_space_gb != null) deviceInfo.push([isCn ? '可用' : 'Free', `${devCfg.free_space_gb} GB`]);
 
   // Usage summary
   if (usageSum.screen_on_sec > 0) {
@@ -695,11 +661,11 @@ ${crashes.other ? `<div class="stat-row"><span class="k">${isCn ? '其他' : 'Ot
   return `<!DOCTYPE html>
 <html lang="${isCn ? 'zh-CN' : 'en'}">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${isCn ? 'iPhone 诊断报告' : 'iPhone Diagnostics'}</title>
+<title>${deviceClass} ${isCn ? '诊断报告' : 'Diagnostics'}</title>
 <style>${CSS}</style></head>
 <body>
 <div class="hero">
-<h1>${isCn ? 'iPhone 诊断报告' : 'iPhone Diagnostics Report'}</h1>
+<h1>${deviceClass} ${isCn ? '诊断报告' : 'Diagnostics Report'}</h1>
 <div class="meta">${metaLines.join('<br>')}</div>
 ${deviceStrip}
 </div>
@@ -729,7 +695,7 @@ ${writerDonut || `<div class="stat-sub">${na}</div>`}</div>
 <div class="card"><div class="card-title">${isCn ? 'GPS 使用' : 'Location Usage'} ${rangeLabel(gpsData.min_ts, gpsData.max_ts, tzMin, isCn)}</div>
 <table><thead><tr><th>${al}</th><th class="sortable" data-type="num">${isCn ? '定位次数' : 'Requests'}</th></tr></thead><tbody>${gpsRows || `<tr><td colspan=2 style="color:var(--ter)">${na}</td></tr>`}</tbody></table></div>
 </div>
-<div class="footer">iPhone Sysdiagnose Analyzer v${VERSION} · ${generatedAt} (${tzLabel})</div>
+<div class="footer">${deviceClass} Sysdiagnose Analyzer v${VERSION} · ${generatedAt} (${tzLabel})</div>
 </div>
 <script>${CHART_JS}</script>
 </body></html>`;

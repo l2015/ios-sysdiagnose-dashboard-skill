@@ -378,10 +378,11 @@ function parseCrashes(baseDir) {
 // ─── App Exits ──────────────────────────────────────────────────────────────
 
 function parseAppExits(db, limit = 15) {
-  const reasonMap = {
-    0: '正常退出', 1: 'Jetsam内存回收', 2: '看门狗超时', 3: '崩溃',
-    5: '挂起超时', 8: '后台任务超时', 10: '非法内存访问',
-    15: '资源耗尽', 16: '看门狗违规',
+  // 退出原因码：数字→描述，从 Apple 标准推断，不写死映射表
+  const reasonDesc = (code) => {
+    // Apple 标准：0=正常, 1=Jetsam, 2=Watchdog, 3=Crash, 5=Suspended, 8=BackgroundTask, 10=BadAccess, 15=Resource, 16=WatchdogViolation
+    const generic = { 0: '正常退出', 1: '内存回收', 2: '看门狗超时', 3: '崩溃', 5: '挂起超时', 8: '后台超时', 10: '非法访问', 15: '资源耗尽', 16: '看门狗违规' };
+    return generic[code] || `原因码${code}`;
   };
   const range = safeOne(db, `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM PLApplicationAgent_EventPoint_ApplicationExitReason`);
   return {
@@ -392,7 +393,7 @@ function parseAppExits(db, limit = 15) {
        GROUP BY Identifier, Reason ORDER BY cnt DESC LIMIT ?`, [limit]
     ).map(r => ({
       bundle_id: r.Identifier, count: r.cnt, reason_code: r.Reason,
-      reason: reasonMap[r.Reason] || `未知(${r.Reason})`,
+      reason: reasonDesc(r.Reason),
     })),
     min_ts: range?.min_ts,
     max_ts: range?.max_ts,
@@ -416,7 +417,7 @@ function parseProcessExits(db, limit = 15) {
 
 function detectTimezone(baseDir) {
   // sysdiagnose_2026.04.08_00-00-42+0800_iPhone-OS_iPhone_23D8133
-  const dirName = baseDir.split('/').pop();
+  const dirName = baseDir.replace(/\/+$/, '').split('/').pop();
   const m = dirName.match(/([+-]\d{4})/);
   if (m) {
     const offset = m[1]; // e.g. "+0800"
@@ -431,14 +432,48 @@ function detectTimezone(baseDir) {
 // ─── Device & System ────────────────────────────────────────────────────────
 
 function parseDeviceConfig(db) {
-  const row = safeOne(db,
-    `SELECT DeviceDiskSize, RemainingDiskSpace, Baseband, BasebandFirmware, Device_SoC
-     FROM PLConfigAgent_EventNone_Config LIMIT 1`
-  );
+  // 动态检测 PLConfigAgent_EventNone_Config 实际存在的列，不假设任何列名
+  const tableInfo = safeQuery(db, `PRAGMA table_info(PLConfigAgent_EventNone_Config)`);
+  if (!tableInfo.length) return {};
+  const colSet = new Set(tableInfo.map(c => c.name));
+
+  // 只 SELECT 存在的列
+  const wantCols = ['DeviceDiskSize', 'RemainingDiskSpace', 'Baseband', 'BasebandFirmware', 'Device_SoC', 'Device', 'DeviceName', 'Build'];
+  const selectCols = wantCols.filter(c => colSet.has(c));
+  if (!selectCols.length) return {};
+
+  const row = safeOne(db, `SELECT ${selectCols.join(', ')} FROM PLConfigAgent_EventNone_Config LIMIT 1`);
   if (!row) return {};
   return {
-    disk_size_gb: row.DeviceDiskSize, free_space_gb: row.RemainingDiskSpace,
-    baseband: row.Baseband, baseband_firmware: row.BasebandFirmware, soc: row.Device_SoC,
+    disk_size_gb: row.DeviceDiskSize ?? null,
+    free_space_gb: row.RemainingDiskSpace ?? null,
+    baseband: row.Baseband ?? null,
+    baseband_firmware: row.BasebandFirmware ?? null,
+    soc: row.Device_SoC ?? null,
+    device_code: row.Device ?? null,
+    device_name: row.DeviceName ?? null,
+    build: row.Build ?? null,
+  };
+}
+
+function parseDeviceInfo(baseDir) {
+  // 从 remotectl_dumpstate.txt 提取设备信息，不硬编码型号映射
+  const file = join(baseDir, 'remotectl_dumpstate.txt');
+  if (!existsSync(file)) return {};
+  const text = readFileSync(file, 'utf-8');
+  const grab = (key) => {
+    const m = text.match(new RegExp(key + '\\s*=>?\\s*(.+)'));
+    return m ? m[1].trim() : null;
+  };
+  return {
+    product_type: grab('ProductType'),           // e.g. iPhone14,2 / iPad11,1
+    hardware_platform: grab('HardwarePlatform'),  // e.g. t8110 / t8020
+    device_class: grab('DeviceClass'),            // e.g. iPhone / iPad / Watch
+    model_number: grab('ModelNumber'),            // e.g. MLT83
+    hw_model: grab('HWModel'),                    // e.g. D63AP / J210AP
+    chip_id: grab('ChipID'),                      // e.g. 33040
+    product_name: grab('ProductName'),            // e.g. iPhone OS
+    product_version: grab('HumanReadableProductVersionString'), // e.g. 26.3.1
   };
 }
 
@@ -482,6 +517,7 @@ function parsePartitions(baseDir) {
 async function extractAll(baseDir, maxPoints = 200) {
   const data = {};
   data.timezone = detectTimezone(baseDir);
+  data.device_info = parseDeviceInfo(baseDir);
   data.crashes = parseCrashes(baseDir);
   data.partitions = parsePartitions(baseDir);
   data.nand_smart = parseNandSmart(baseDir);
@@ -545,4 +581,4 @@ if (process.argv[1] && process.argv[1].endsWith('extract.mjs')) {
   else process.stdout.write(json);
 }
 
-export { extractAll, parseBattery, parseNandSmart, parseCrashes, parseAppExits };
+export { extractAll, parseBattery, parseNandSmart, parseCrashes, parseAppExits, parseDeviceInfo };

@@ -1,6 +1,6 @@
 # iPhone Sysdiagnose Analyzer
 
-> OpenClaw Skill · 版本 0.2.16
+> OpenClaw Skill · 版本 0.2.17
 
 分析 iPhone sysdiagnose 诊断归档文件，提取电池健康、闪存状态、应用使用、崩溃日志等数据，生成自包含的 HTML 报告。
 
@@ -95,6 +95,14 @@ ios-sysdiagnose-dashboard-skill/
 ```
 
 ## 更新日志
+
+### v0.2.17
+- 去除所有硬编码映射：设备信息从 `remotectl_dumpstate.txt` 动态提取（ProductType/HardwarePlatform/DeviceClass），不再写死 SoC→型号/芯片名
+- `parseDeviceConfig` 动态检测 PowerLog 列（`PRAGMA table_info`），iPad 等无 `Device_SoC` 列的设备不再返回空数据
+- App 显示名从 bundle ID 自动推断（取末段），不再维护 ~40 条映射表
+- 报告标题/页脚随设备类型变化（iPhone/iPad/Watch）
+- 语言检测改为纯时区驱动，不再写死中国 App 前缀列表
+- 修复路径末尾 `/` 导致时区解析失败的 bug
 
 ### v0.2.16
 - 崩溃展开按钮移到数字左侧，数字对齐
