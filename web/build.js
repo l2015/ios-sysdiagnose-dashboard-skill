@@ -169,13 +169,24 @@ const appScript = '<script>\n' +
   '      s.textContent = CHART_JS_DATA;\n' +
   '      document.body.appendChild(s);\n' +
   '      dropZone.classList.add("hidden");\n' +
-  '      // Show warning if PowerLog was not loaded\n' +
+  '      // Set debug diagnostics\n' +
   '      if (data._diag) {\n' +
-  '        var plFound = data._diag.some(function(d){return d.startsWith("PowerLog:") && !d.includes("NOT FOUND")});\n' +
+  '        var d = data._diag;\n' +
+  '        var find = function(p){for(var i=0;i<d.length;i++)if(d[i].startsWith(p))return d[i].slice(p.length);return "?"};\n' +
+  '        window._debugDiag = {\n' +
+  '          device: find("Device: "),\n' +
+  '          nand: find("NAND: "),\n' +
+  '          crashes: find("Crashes: "),\n' +
+  '          powerlog: find("PowerLog: "),\n' +
+  '          battery: find("Battery: "),\n' +
+  '          apps: find("Apps: "),\n' +
+  '          raw: d\n' +
+  '        };\n' +
+  '        var plFound = d.some(function(s){return s.startsWith("PowerLog:") && !s.includes("NOT FOUND")});\n' +
   '        if (!plFound) {\n' +
   '          var warn = document.createElement("div");\n' +
   '          warn.style.cssText = "position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#ff9f0a;color:#000;padding:10px 20px;border-radius:12px;font-size:.85em;z-index:200;max-width:90vw;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.4)";\n' +
-  '          warn.textContent = "\\u26A0\\uFE0F PowerLog 未找到，报告数据不完整。查看浏览器控制台了解详情。";\n' +
+  '          warn.textContent = "\\u26A0\\uFE0F PowerLog 未找到，报告数据不完整。点击左上角 Debug 按钮查看诊断。";\n' +
   '          document.body.appendChild(warn);\n' +
   '          setTimeout(function(){warn.style.opacity="0";warn.style.transition="opacity .5s";setTimeout(function(){warn.remove()},500)},8000);\n' +
   '        }\n' +

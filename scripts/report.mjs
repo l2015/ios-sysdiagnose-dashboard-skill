@@ -414,9 +414,80 @@ window.toggleCrash=function(el){var id=el.getAttribute('data-target');var el2=do
 
 // Preview/Debug mode
 window._debugMode=false;
-window.toggleDebug=function(){window._debugMode=!window._debugMode;document.body.classList.toggle('debug',window._debugMode);document.getElementById('debug-badge').textContent=window._debugMode?'Debug':'Preview';document.getElementById('debug-badge').classList.toggle('active',window._debugMode)};
-// In debug mode, clicking any stat-row shows source info
-document.addEventListener('click',function(e){if(!window._debugMode)return;var row=e.target.closest('.stat-row,.kpi,.bat-stat,.donut-seg');if(!row){return}var info=row.getAttribute('data-source');if(!info){var label=row.querySelector('.k')?.textContent||row.querySelector('.bat-stat-lbl')?.textContent||'';info='Source: PowerLog / ASP SMART\\nField: '+label}var popup=document.getElementById('debug-popup');if(!popup){popup=document.createElement('div');popup.id='debug-popup';popup.style.cssText='position:fixed;background:#1c1c1e;border:1px solid #48484a;color:#f5f5f7;padding:10px 14px;border-radius:10px;font-size:.78em;z-index:9999;max-width:320px;white-space:pre-line;box-shadow:0 8px 24px rgba(0,0,0,.5)';document.body.appendChild(popup)}popup.textContent=info;popup.style.display='block';var r=row.getBoundingClientRect();popup.style.left=Math.max(8,Math.min(window.innerWidth-340,r.left))+'px';popup.style.top=(r.bottom+6)+'px';setTimeout(function(){popup.style.display='none'},4000)},{capture:true});
+window._debugDiag=null; // set by handleFile after extract
+window.toggleDebug=function(){
+  window._debugMode=!window._debugMode;
+  document.body.classList.toggle('debug',window._debugMode);
+  document.getElementById('debug-badge').textContent=window._debugMode?'Debug':'Preview';
+  document.getElementById('debug-badge').classList.toggle('active',window._debugMode);
+  // Toggle debug panel
+  var panel=document.getElementById('debug-panel');
+  if(window._debugMode){
+    if(!panel){
+      panel=document.createElement('div');
+      panel.id='debug-panel';
+      panel.style.cssText='position:fixed;top:44px;left:12px;z-index:99;background:#1c1c1e;border:1px solid #48484a;color:#f5f5f7;padding:14px 18px;border-radius:12px;font-size:.78em;max-width:420px;max-height:70vh;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5);line-height:1.7';
+      document.body.appendChild(panel);
+    }
+    var html='<div style="font-weight:700;margin-bottom:8px;color:#0a84ff">🔍 Debug 诊断</div>';
+    // Module status
+    var modules=[
+      ['设备信息',window._debugDiag?.device],
+      ['NAND闪存',window._debugDiag?.nand],
+      ['崩溃日志',window._debugDiag?.crashes],
+      ['PowerLog',window._debugDiag?.powerlog],
+      ['电池',window._debugDiag?.battery],
+      ['App数据',window._debugDiag?.apps]
+    ];
+    html+='<div style="margin-bottom:10px">';
+    for(var i=0;i<modules.length;i++){
+      var m=modules[i],status=m[1]||'?';
+      var color=status.indexOf('OK')>=0||status.indexOf('%')>=0?'#34c759':status.indexOf('NOT')>=0||status.indexOf('empty')>=0?'#ff3b30':status.indexOf('ERROR')>=0?'#ff9f0a':'#8e8e93';
+      html+='<div><span style="color:'+color+'">●</span> <b>'+m[0]+':</b> '+status+'</div>';
+    }
+    html+='</div>';
+    // Raw diag log
+    if(window._debugDiag?.raw&&window._debugDiag.raw.length){
+      html+='<div style="border-top:1px solid #3a3a3c;padding-top:8px;margin-top:4px">';
+      html+='<div style="color:#8e8e93;margin-bottom:4px">原始日志:</div>';
+      for(var j=0;j<window._debugDiag.raw.length;j++){
+        html+='<div style="color:#636366;font-size:.92em">• '+window._debugDiag.raw[j]+'</div>';
+      }
+      html+='</div>';
+    }
+    // Tip
+    html+='<div style="border-top:1px solid #3a3a3c;padding-top:8px;margin-top:8px;color:#636366;font-size:.9em">点击任意数据行查看数据来源</div>';
+    panel.innerHTML=html;
+    panel.style.display='block';
+  }else if(panel){
+    panel.style.display='none';
+  }
+};
+// In debug mode, clicking any data row shows source info (dismiss on click outside)
+document.addEventListener('click',function(e){
+  if(!window._debugMode)return;
+  var popup=document.getElementById('debug-popup');
+  // Click outside popup dismisses it
+  if(popup&&popup.style.display==='block'&&!e.target.closest('#debug-popup')&&!e.target.closest('.stat-row,.kpi,.bat-stat,.donut-seg')){
+    popup.style.display='none';return;
+  }
+  var row=e.target.closest('.stat-row,.kpi,.bat-stat,.donut-seg');
+  if(!row)return;
+  var info=row.getAttribute('data-source');
+  if(!info){var label=row.querySelector('.k')?.textContent||row.querySelector('.bat-stat-lbl')?.textContent||'';info='Source: PowerLog / ASP SMART\\nField: '+label}
+  if(!popup){
+    popup=document.createElement('div');
+    popup.id='debug-popup';
+    popup.style.cssText='position:fixed;background:#1c1c1e;border:1px solid #48484a;color:#f5f5f7;padding:10px 14px;border-radius:10px;font-size:.78em;z-index:9999;max-width:320px;white-space:pre-line;box-shadow:0 8px 24px rgba(0,0,0,.5);cursor:pointer';
+    popup.title='点击关闭';
+    document.body.appendChild(popup);
+  }
+  popup.textContent=info;
+  popup.style.display='block';
+  var r=row.getBoundingClientRect();
+  popup.style.left=Math.max(8,Math.min(window.innerWidth-340,r.left))+'px';
+  popup.style.top=(r.bottom+6)+'px';
+},{capture:true});
 
 // Period switching
 window.switchPeriod=function(chartId,days,btn){
