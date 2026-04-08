@@ -21,9 +21,18 @@ const css = cssMatch ? cssMatch[1].replace(/\\\n/g, '\n') : '';
 const chartJsMatch = reportSrc.match(/const CHART_JS = `([\s\S]*?)`;/);
 const chartJs = chartJsMatch ? chartJsMatch[1] : '';
 
-// Extract generateReport
-const genMatch = reportSrc.match(/(function generateReport\(data\) \{[\s\S]*?)(?:^export)/m);
-const generateReportSrc = genMatch ? genMatch[1].trim() : '';
+// Extract generateReport — use brace counting to stop at function close, not at export
+const genStartMatch = reportSrc.match(/^function generateReport\(data\) \{/m);
+let generateReportSrc = '';
+if (genStartMatch) {
+  const start = genStartMatch.index;
+  let depth = 0, end = start;
+  for (let i = start; i < reportSrc.length; i++) {
+    if (reportSrc[i] === '{') depth++;
+    if (reportSrc[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
+  }
+  generateReportSrc = reportSrc.slice(start, end).trim();
+}
 
 // Extract helpers
 const helpers = [];
