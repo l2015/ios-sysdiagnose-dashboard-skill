@@ -1,6 +1,6 @@
 # iPhone Sysdiagnose Analyzer
 
-> OpenClaw Skill · 版本 0.2.24
+> OpenClaw Skill · 版本 0.2.27
 
 分析 iPhone sysdiagnose 诊断归档文件，提取电池健康、闪存状态、应用使用、崩溃日志等数据，生成自包含的 HTML 报告。
 
@@ -90,17 +90,15 @@ ios-sysdiagnose-dashboard-skill/
 
 ## 更新日志
 
-### v0.2.24
-- 修复浏览器版 tar 解析器致命 bug：`longName` 变量在 `while` 循环体内用 `let` 声明，每次迭代被重置为 `null`，导致 GNU 长文件名（>100字符）丢失
-- 长文件名丢失导致 VFS 中大部分文件路径错误，PowerLog/崩溃日志/App 数据全部无法读取
-- `longName` 移至循环外部声明，使用后显式 `longName = null` 重置
-- 新增 BSD tar binary size 支持（`readEntrySize` 函数，处理高位字节标记的二进制编码大小）
-- `findPowerlog` 新增两级 fallback：先搜整个 VFS 的 powerlog 路径，再搜任意 .PLSQL 文件
-- 浏览器版 `extractAll` 新增诊断日志（`_diag` 字段），PowerLog 未找到时在 UI 显示警告条
-- 补齐浏览器版缺失的提取函数：`parseBrightnessTrend`、`parseAppEnergy`、`parseAppCpu`、`parseProcessExits`
-- 重做 Debug 模式：诊断面板显示 6 模块状态（绿●正常/红●缺失）+ 原始日志；popup 不再 4 秒自动消失，点击外部关闭
-- 修复 build.js `<script>` 转义 bug：同时转义 `<script>` → `<scr'+'ipt>` 和 `</script>` → `</scr'+'ipt>`，防止 HTML 解析器嵌套 script 块导致电量趋势以下模块消失
-- 崩溃分析诊断增强：控制台输出目录内实际文件数和类型
+### v0.2.27
+- 修复浏览器版 tar 解析器致命 bug：`longName` 在 `while` 循环体内 `let` 声明导致 GNU 长文件名丢失，VFS 文件路径全部错误
+- `longName` 移至循环外部声明 + 显式重置 + 新增 BSD tar binary size 支持
+- `findPowerlog` 两级 fallback：先搜 powerlog 路径，再搜任意 .PLSQL
+- `extractAll` 新增诊断日志（`_diag`），PowerLog 缺失时 UI 显示警告条
+- 补齐缺失提取函数：`parseBrightnessTrend`、`parseAppEnergy`、`parseAppCpu`、`parseProcessExits`
+- 重做 Debug 模式：诊断面板显示 6 模块状态 + 原始日志，点击外部关闭
+- 修复 build.js `<script>` / `</script>` 转义：同时转义为 split string，防止 HTML 解析器嵌套 script 块导致电量趋势以下模块消失
+- 崩溃诊断增强：控制台输出目录内实际文件数
 
 ### v0.2.22
 - 修复 web/build.js helper 提取：`opts = {}` 默认参数中的 `{}` 被误认为函数体花括号，导致 `interactiveChartSvg` 和 `barChartSvg` 两个函数被截断
