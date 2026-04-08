@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.18';
+const VERSION = '0.2.19';
 
 // ─── Device Model Lookup ────────────────────────────────────────────────────
 // ProductType → 友好名称，覆盖 iPhone/iPad/Watch/Vision/TV/HomePod/iPod
@@ -86,31 +86,28 @@ const PRODUCT_TYPE = {
   'iPod1,1':'iPod touch','iPod2,1':'iPod touch 2','iPod3,1':'iPod touch 3','iPod4,1':'iPod touch 4','iPod5,1':'iPod touch 5','iPod7,1':'iPod touch 6','iPod9,1':'iPod touch 7',
 };
 
-// HardwarePlatform → 芯片名称
+// HardwarePlatform → SoC 商业名称
 const SOC_NAME = {
-  // A-series
-  's5l8900x':'ARM1176 (S5L8900)','s5l8920x':'ARM Cortex-A8 (S5L8920)','s5l8922x':'ARM Cortex-A8 (S5L8922)',
-  's5l8930x':'ARM Cortex-A9 (S5L8930)','s5l8940x':'ARM Cortex-A9 (S5L8940)','s5l8942x':'ARM Cortex-A9 (S5L8942)',
-  's5l8945x':'ARM Cortex-A6 (S5L8945)','s5l8947x':'ARM Cortex-A6 (S5L8947)',
-  's5l8950x':'ARM Cortex-A7 (S5L8950)','s5l8955x':'ARM Cortex-A7 (S5L8955)',
-  's5l8960x':'ARM Cyclone (A7)','t7000':'ARM Typhoon (A8)','t7001':'ARM Typhoon (A8X)',
-  't8010':'ARM Twister (A9)','t8011':'ARM Twister (A9X)','t8012':'ARM Twister (A9, S2)',
-  't8015':'ARM Hurricane (A10)','t8015s':'ARM Hurricane (A10, S3)',
-  't8020':'ARM Monsoon+Mistral (A12)','t8020s':'ARM Monsoon+Mistral (A12, S4/S5)',
-  't8027':'ARM Monsoon+Mistral (A12X)','t8030':'ARM Vortex+Tempest (A13)',
-  't8101':'ARM Firestorm+Icestorm (A14)','t8103':'ARM Firestorm+Icestorm (M1)',
-  't6000':'ARM Firestorm+Icestorm (M1 Pro)','t6001':'ARM Firestorm+Icestorm (M1 Max)','t6002':'ARM Firestorm+Icestorm (M1 Ultra)',
-  't8110':'ARM Avalanche+Blizzard (A15)','t8112':'ARM Everest+Sawtooth (A16)',
-  't8120':'ARM Coll+Palma (A17 Pro)','t8130':'ARM Coll+Palma (M4)',
-  't6020':'ARM Avalanche+Blizzard (M2)','t6021':'ARM Avalanche+Blizzard (M2 Pro)','t6022':'ARM Avalanche+Blizzard (M2 Max)','t6023':'ARM Avalanche+Blizzard (M2 Ultra)',
-  't6030':'ARM Everest+Sawtooth (A18)','t6031':'ARM Everest+Sawtooth (A18 Pro)',
-  't6034':'ARM Everest+Sawtooth (M3)','t6035':'ARM Everest+Sawtooth (M3 Pro)','t6036':'ARM Everest+Sawtooth (M3 Max)','t6037':'ARM Everest+Sawtooth (M3 Ultra)',
-  't8140':'ARM (M5)',
-  // S-series (Apple Watch)
-  't8002':'ARM (S1)','t8003':'ARM (S1P)','t8004':'ARM (S2)','t8006':'ARM (S3)','t8007':'ARM (S3)',
-  't8009':'ARM (S4/S5)','t8010s':'ARM (S6)','t8014':'ARM (S7)','t8016':'ARM (S8)','t8018':'ARM (S9)',
-  // R1 (Vision Pro)
-  't6512':'ARM (R1)',
+  's5l8900x':'S5L8900','s5l8920x':'S5L8920','s5l8922x':'S5L8922',
+  's5l8930x':'S5L8930','s5l8940x':'S5L8940','s5l8942x':'S5L8942',
+  's5l8945x':'S5L8945','s5l8947x':'S5L8947',
+  's5l8950x':'A7','s5l8955x':'A7',
+  's5l8960x':'A7','t7000':'A8','t7001':'A8X',
+  't8010':'A9','t8011':'A9X','t8012':'A9',
+  't8015':'A10','t8015s':'A10',
+  't8020':'A12','t8020s':'A12',
+  't8027':'A12X','t8030':'A13',
+  't8101':'A14','t8103':'M1',
+  't6000':'M1 Pro','t6001':'M1 Max','t6002':'M1 Ultra',
+  't8110':'A15','t8112':'A16',
+  't8120':'A17 Pro','t8130':'M4',
+  't6020':'M2','t6021':'M2 Pro','t6022':'M2 Max','t6023':'M2 Ultra',
+  't6030':'A18','t6031':'A18 Pro',
+  't6034':'M3','t6035':'M3 Pro','t6036':'M3 Max','t6037':'M3 Ultra',
+  't8140':'M5',
+  't8002':'S1','t8003':'S1P','t8004':'S2','t8006':'S3','t8007':'S3',
+  't8009':'S4','t8010s':'S6','t8014':'S7','t8016':'S8','t8018':'S9',
+  't6512':'R1',
 };
 
 // Formatters
@@ -291,47 +288,23 @@ ${warnSvg}${hover}
 
 // ─── Donut Chart ────────────────────────────────────────────────────────────
 
-function donutChartSvg(items, opts = {}) {
-  const { size = 200, labelKey = 'label', valueKey = 'value', chartId = 'donut' } = opts;
-  const cx = size / 2, cy = size / 2, r = size / 2 - 8, ir = r * 0.62;
+// Apple 风格水平条形图（替换饼图）
+function barChartSvg(items, opts = {}) {
+  const { labelKey = 'label', valueKey = 'value' } = opts;
   const total = items.reduce((s, i) => s + (i[valueKey] || 0), 0);
   if (!total) return '';
-  const PALETTE = ['#30d158','#ff9f0a','#5e5ce6','#64d2ff','#bf5af2','#ff375f','#ffd60a','#ff6b35','#a2845e','#636366'];
-  let angle = -Math.PI / 2;
-  const arcs = [];
-  const legend = [];
-  items.forEach((item, i) => {
+  // Apple HIG 柔和色系
+  const PALETTE = ['#30d158','#5e5ce6','#0a84ff','#ff9f0a','#bf5af2','#64d2ff','#ff375f','#ffd60a','#a2845e','#636366'];
+  const rows = items.slice(0, 8).map((item, i) => {
     const val = item[valueKey] || 0;
-    const pct = val / total;
-    const sweep = pct * Math.PI * 2;
-    const a1 = angle, a2 = angle + sweep;
+    const pct = (val / total * 100);
     const color = PALETTE[i % PALETTE.length];
-    const largeArc = sweep > Math.PI ? 1 : 0;
-    const gap = 0.02; // small gap between segments
-    const a1g = a1 + gap, a2g = a2 - gap;
-    if (a2g <= a1g) { angle = a2; return; }
-    const x1o = cx + r * Math.cos(a1g), y1o = cy + r * Math.sin(a1g);
-    const x2o = cx + r * Math.cos(a2g), y2o = cy + r * Math.sin(a2g);
-    const x1i = cx + ir * Math.cos(a2g), y1i = cy + ir * Math.sin(a2g);
-    const x2i = cx + ir * Math.cos(a1g), y2i = cy + ir * Math.sin(a1g);
-    const la = (a2g - a1g) > Math.PI ? 1 : 0;
-    arcs.push(`<path d="M${x1o.toFixed(1)},${y1o.toFixed(1)} A${r},${r} 0 ${la},1 ${x2o.toFixed(1)},${y2o.toFixed(1)} L${x1i.toFixed(1)},${y1i.toFixed(1)} A${ir},${ir} 0 ${la},0 ${x2i.toFixed(1)},${y2i.toFixed(1)} Z" fill="${color}" opacity=".85"/>`);
-    legend.push({ label: item[labelKey], pct: (pct * 100).toFixed(1), color, val: fmtBytes(val) });
-    angle = a2;
-  });
-  // Center text: top app name + percentage
-  const topApp = legend[0];
-  const legendHtml = legend.map(l =>
-    `<div style="display:flex;align-items:center;gap:6px;font-size:.78em;line-height:1.8"><span style="width:10px;height:10px;border-radius:3px;background:${l.color};flex-shrink:0"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.label}</span><span style="color:var(--ter);font-size:.9em">${l.val}</span><span style="font-weight:600;width:42px;text-align:right">${l.pct}%</span></div>`
-  ).join('');
-  return `<div style="display:flex;gap:20px;align-items:center">
-<div style="position:relative;width:${size}px;height:${size}px;flex-shrink:0">
-<svg viewBox="0 0 ${size} ${size}" style="width:100%;height:100%" xmlns="http://www.w3.org/2000/svg">${arcs.join('')}</svg>
-<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
-<div style="font-size:1.4em;font-weight:700;letter-spacing:-.02em">${topApp.pct}%</div>
-<div style="font-size:.7em;color:var(--ter);margin-top:2px">${topApp.label}</div>
-</div></div>
-<div style="flex:1;min-width:0">${legendHtml}</div></div>`;
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+<span style="font-size:.8em;width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0">${item[labelKey]}</span>
+<div style="flex:1;height:20px;background:var(--border);border-radius:6px;overflow:hidden"><div style="height:100%;width:${pct.toFixed(1)}%;background:${color};border-radius:6px;opacity:.85;transition:width .3s"></div></div>
+<span style="font-size:.78em;color:var(--ter);width:80px;text-align:right;flex-shrink:0">${fmtBytes(val)} (${pct.toFixed(1)}%)</span></div>`;
+  }).join('');
+  return `<div style="padding:4px 0">${rows}</div>`;
 }
 
 // ─── CSS ────────────────────────────────────────────────────────────────────
@@ -385,8 +358,6 @@ th.sortable.desc::after{content:' ↓';opacity:.8}
 .crash-toggle{cursor:pointer;color:var(--blue);font-size:.75em;font-style:normal;margin-left:4px;border:1px solid var(--blue);opacity:.6;transition:opacity .15s}
 .crash-toggle:hover{opacity:1}
 .crash-apps{padding:4px 0 4px 16px;border-left:2px solid var(--border);margin:0 0 4px 4px;font-size:.85em}
-.donut-seg{cursor:pointer;transition:opacity .15s}
-.donut-seg:hover{opacity:.75}
 body.debug .stat-row,body.debug .kpi,body.debug .bat-stat{cursor:help;outline:1px dashed transparent;transition:outline-color .15s}
 body.debug .stat-row:hover,body.debug .kpi:hover,body.debug .bat-stat:hover{outline-color:rgba(10,132,255,.4)}
 body.debug #debug-badge{background:var(--blue);color:#000;border-color:var(--blue)}
@@ -657,8 +628,8 @@ function generateReport(data) {
     const legendHtml = bands.length ? `<div style="margin-top:6px;font-size:.72em;color:var(--ter)"><span style="display:inline-block;width:12px;height:8px;background:#34c759;opacity:.3;border-radius:2px;vertical-align:middle;margin-right:4px"></span>${isCn ? '绿色背景 = 亮屏' : 'Green = screen on'}</div>` : '';
     const trendJson = JSON.stringify(trend.map(p => ({t:p.ts, l:p.level, s:p.screen_on?1:0, c:p.charging?1:0})));
     const spanSec = trend.length ? trend[trend.length-1].ts - trend[0].ts : 0;
-    const showDay = spanSec > 86400*2;
-    const showWeek = spanSec > 86400*8;
+    const showDay = spanSec > 86400;
+    const showWeek = spanSec > 86400*7;
     let periodBtns = '';
     if (showDay || showWeek) {
       periodBtns = '<div class="period-btns">';
@@ -681,7 +652,7 @@ function generateReport(data) {
       const othersSum = writers.slice(8).reduce((s, w) => s + (w.logical_writes_bytes || 0), 0);
       if (othersSum > 0) topWriters.push({ label: isCn ? '其他' : 'Others', value: othersSum });
     }
-    writerDonut = donutChartSvg(topWriters, { size: 200, chartId: 'nand' });
+    writerDonut = barChartSvg(topWriters);
   }
 
   let appRows = '';
