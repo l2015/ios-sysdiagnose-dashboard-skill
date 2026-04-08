@@ -1381,7 +1381,7 @@ function generateReport(data) {
       if (showDay) periodBtns += `<button class="period-btn active" data-range="1" onclick="switchPeriod('bat',1,this)">24${isCn ? '时' : 'h'}</button>`;
       periodBtns += '</div>';
     }
-    batChart = `<div class="card full"><div class="card-title">${isCn ? '电量趋势' : 'Battery Trend'} ${rangeLabel(trendData.min_ts, trendData.max_ts, tzMin, isCn)}</div>${periodBtns}<div id="bat-chart-wrap">${svg}</div>${legendHtml}${statsHtml}<script>window._trendData={id:'bat',tz:${tzMin},data:${trendJson}};<\/scr'+'ipt></div>`;
+    batChart = `<div class="card full"><div class="card-title">${isCn ? '电量趋势' : 'Battery Trend'} ${rangeLabel(trendData.min_ts, trendData.max_ts, tzMin, isCn)}</div>${periodBtns}<div id="bat-chart-wrap">${svg}</div>${legendHtml}${statsHtml}<scr'+'ipt>window._trendData={id:'bat',tz:${tzMin},data:${trendJson}};</scr'+'ipt></div>`;
   }
 
   // ─── Tables ───

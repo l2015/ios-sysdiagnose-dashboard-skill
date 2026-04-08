@@ -113,11 +113,12 @@ const libScript = '<script>' + pakoJs + '</script>\n';
 const sqlScript = '<script>' + sqlJs + '</script>\n';
 
 // Remove CHART_JS embed — browser version injects CHART_JS_DATA separately via IIFE
-// Only escape </script> inside generated report HTML (split to prevent HTML parser from closing outer script)
-// <script> is harmless inside a JS string literal — do NOT escape it
+// Escape <script> and </script> inside generated report HTML to prevent the HTML parser
+// from opening/closing script blocks when these appear inside the outer <script> tag.
 let generateReportSafe = generateReportSrc
   .replace(/<script>\$\{CHART_JS\}<\/script>/g, '')
-  .replace(/<\/script>/gi, "<\\/scr'+'ipt>");
+  .replace(/<script>/gi, "<scr'+'ipt>")
+  .replace(/<\/script>/gi, "</scr'+'ipt>");
 
 // App script
 const chartJsEscaped = JSON.stringify(chartJs);
