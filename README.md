@@ -91,8 +91,11 @@ ios-sysdiagnose-dashboard-skill/
 ## 更新日志
 
 ### v0.2.22
-- 修复 web/build.js helper 提取：`opts = {}` 默认参数中的 `{}` 被误认为函数体花括号，导致 `interactiveChartSvg` 和 `barChartSvg` 两个函数被截断，浏览器版拖入文件和点击选文件均无效
-- Helper 提取改为括号感知：跳过参数区花括号，只在外层花括号上计数
+- 修复 web/build.js helper 提取：`opts = {}` 默认参数中的 `{}` 被误认为函数体花括号，导致 `interactiveChartSvg` 和 `barChartSvg` 两个函数被截断
+- 修复 generateReport 提取：regex `^export` 匹配范围过大，CLI 代码（`process.argv`）被带入浏览器版导致 ReferenceError 崩溃
+- 修复 generateReport 中 `${CHART_JS}` 引用：浏览器版未定义该变量，浏览器版改用 `CHART_JS_DATA` 单独注入
+- Helper 提取改为括号感知：跳过参数区花括号，只在外层花括号上计数；简单 const 按分号截断
+- 新增 `VERSION` 到 helper 提取列表
 
 ### v0.2.20
 - 新增 `analyze.sh` 一键分析脚本，简化手动使用流程
