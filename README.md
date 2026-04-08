@@ -16,27 +16,20 @@
 ## 快速开始
 
 ```bash
-# 克隆项目
 git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
-cd ios-sysdiagnose-dashboard-skill/scripts
-npm install
-
-# 解压 sysdiagnose 归档
-WORK=$(mktemp -d)
-tar xzf your-sysdiagnose.tar.gz -C "$WORK"
-BASE=$(find "$WORK" -maxdepth 1 -type d -name "sysdiagnose_*" | head -1)
-
-# 提取数据
-node extract.mjs "$BASE" -o data.json
-
-# 生成报告
-node report.mjs data.json -o report.html
-
-# 清理
-rm -rf "$WORK"
+cd ios-sysdiagnose-dashboard-skill
+bash analyze.sh your-sysdiagnose.tar.gz
 ```
 
-打开 `report.html` 即可查看报告。
+报告生成在当前目录：`report-20260408.html`，浏览器打开即可查看。
+
+也可以手动运行：
+
+```bash
+cd scripts && npm install
+node extract.mjs <sysdiagnose解压目录> -o data.json
+node report.mjs data.json -o report.html
+```
 
 ## 环境要求
 
@@ -83,6 +76,7 @@ Apple HIG 风格暗色主题 HTML 报告，包含：
 
 ```
 ios-sysdiagnose-dashboard-skill/
+├── analyze.sh               # 一键分析脚本
 ├── SKILL.md                 # OpenClaw 技能定义
 ├── _meta.json               # ClawHub 元数据
 ├── package.json             # 项目管理
@@ -97,6 +91,7 @@ ios-sysdiagnose-dashboard-skill/
 ## 更新日志
 
 ### v0.2.20
+- 新增 `analyze.sh` 一键分析脚本，简化手动使用流程
 - 崩溃展开按钮增大、间距优化
 - 存储显示合并为"已用/总(百分比)"格式
 - 电量趋势默认展示最近24h，修复切换后悬浮提示失效
