@@ -112,8 +112,10 @@ const libScript = '<script>' + pakoJs + '</script>\n';
 // Inline sql.js (the library itself, not the WASM — that's embedded in extractFixed via base64)
 const sqlScript = '<script>' + sqlJs + '</script>\n';
 
-// Escape <script> and </script> inside generated report HTML to prevent breaking outer script tag
-const generateReportSafe = generateReportSrc
+// Remove CHART_JS embed — browser version injects CHART_JS_DATA separately via IIFE
+// Then escape remaining <script> and </script> inside generated report HTML
+let generateReportSafe = generateReportSrc
+  .replace(/<script>\$\{CHART_JS\}<\/script>/g, '')
   .replace(/<script>/gi, '<\\/script>')
   .replace(/<\/script>/gi, '<\\/script>');
 
