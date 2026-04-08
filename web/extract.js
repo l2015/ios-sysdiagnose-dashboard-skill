@@ -180,8 +180,17 @@ function parseCrashes(vfs, baseDir) {
   const counts = { jetsam: 0, safari: 0, disk_writes: 0, cpu_resource: 0, sfa: 0, other: 0, details: [] };
   let total = 0;
   if (!vfs.existsSync(crashDir)) { counts.total = 0; return counts; }
-  for (const fname of vfs.readdirSync(crashDir).sort()) {
-    if (!fname.endsWith('.ips') || fname.startsWith('._') || fname.startsWith('stacks-')) continue;
+  const allFiles = vfs.readdirSync(crashDir);
+  const ipsFiles = allFiles.filter(f => f.endsWith('.ips'));
+  // Diagnostic: log what we see
+  if (typeof console !== 'undefined') {
+    console.log('[crashes] dir:', crashDir, 'total files:', allFiles.length, '.ips files:', ipsFiles.length);
+    if (ipsFiles.length === 0 && allFiles.length > 0) {
+      console.log('[crashes] non-.ips files sample:', allFiles.slice(0, 10));
+    }
+  }
+  for (const fname of ipsFiles.sort()) {
+    if (fname.startsWith('._') || fname.startsWith('stacks-')) continue;
     total++;
     const fl = fname.toLowerCase();
     if (fl.includes('jetsam')) {
