@@ -7,9 +7,113 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.17';
+const VERSION = '0.2.18';
 
-// ─── Formatters ─────────────────────────────────────────────────────────────
+// ─── Device Model Lookup ────────────────────────────────────────────────────
+// ProductType → 友好名称，覆盖 iPhone/iPad/Watch/Vision/TV/HomePod/iPod
+// 查不到时回退到原始 ProductType
+const PRODUCT_TYPE = {
+  // iPhone
+  'iPhone1,1':'iPhone','iPhone1,2':'iPhone 3G','iPhone2,1':'iPhone 3GS',
+  'iPhone3,1':'iPhone 4','iPhone3,2':'iPhone 4','iPhone3,3':'iPhone 4',
+  'iPhone4,1':'iPhone 4S','iPhone5,1':'iPhone 5','iPhone5,2':'iPhone 5',
+  'iPhone5,3':'iPhone 5C','iPhone5,4':'iPhone 5C',
+  'iPhone6,1':'iPhone 5S','iPhone6,2':'iPhone 5S',
+  'iPhone7,1':'iPhone 6 Plus','iPhone7,2':'iPhone 6',
+  'iPhone8,1':'iPhone 6s','iPhone8,2':'iPhone 6s Plus','iPhone8,4':'iPhone SE',
+  'iPhone9,1':'iPhone 7','iPhone9,2':'iPhone 7 Plus','iPhone9,3':'iPhone 7','iPhone9,4':'iPhone 7 Plus',
+  'iPhone10,1':'iPhone 8','iPhone10,2':'iPhone 8 Plus','iPhone10,3':'iPhone X','iPhone10,4':'iPhone 8','iPhone10,5':'iPhone 8 Plus','iPhone10,6':'iPhone X',
+  'iPhone11,2':'iPhone XS','iPhone11,4':'iPhone XS Max','iPhone11,6':'iPhone XS Max','iPhone11,8':'iPhone XR',
+  'iPhone12,1':'iPhone 11','iPhone12,3':'iPhone 11 Pro','iPhone12,5':'iPhone 11 Pro Max','iPhone12,8':'iPhone SE 2',
+  'iPhone13,1':'iPhone 12 mini','iPhone13,2':'iPhone 12','iPhone13,3':'iPhone 12 Pro','iPhone13,4':'iPhone 12 Pro Max',
+  'iPhone14,2':'iPhone 13 Pro','iPhone14,3':'iPhone 13 Pro Max','iPhone14,4':'iPhone 13 mini','iPhone14,5':'iPhone 13','iPhone14,6':'iPhone SE 3',
+  'iPhone14,7':'iPhone 14','iPhone14,8':'iPhone 14 Plus','iPhone15,2':'iPhone 14 Pro','iPhone15,3':'iPhone 14 Pro Max',
+  'iPhone15,4':'iPhone 15','iPhone15,5':'iPhone 15 Plus','iPhone16,1':'iPhone 15 Pro','iPhone16,2':'iPhone 15 Pro Max',
+  'iPhone17,1':'iPhone 16 Pro','iPhone17,2':'iPhone 16 Pro Max','iPhone17,3':'iPhone 16','iPhone17,4':'iPhone 16 Plus','iPhone17,5':'iPhone 16e',
+  // iPad
+  'iPad1,1':'iPad','iPad2,1':'iPad 2','iPad2,2':'iPad 2','iPad2,3':'iPad 2','iPad2,4':'iPad 2',
+  'iPad2,5':'iPad mini','iPad2,6':'iPad mini','iPad2,7':'iPad mini',
+  'iPad3,1':'iPad 3','iPad3,2':'iPad 3','iPad3,3':'iPad 3',
+  'iPad3,4':'iPad 4','iPad3,5':'iPad 4','iPad3,6':'iPad 4',
+  'iPad4,1':'iPad Air','iPad4,2':'iPad Air','iPad4,3':'iPad Air',
+  'iPad4,4':'iPad mini 2','iPad4,5':'iPad mini 2','iPad4,6':'iPad mini 2',
+  'iPad4,7':'iPad mini 3','iPad4,8':'iPad mini 3','iPad4,9':'iPad mini 3',
+  'iPad5,1':'iPad mini 4','iPad5,2':'iPad mini 4','iPad5,3':'iPad Air 2','iPad5,4':'iPad Air 2',
+  'iPad6,3':'iPad Pro 9.7″','iPad6,4':'iPad Pro 9.7″',
+  'iPad6,7':'iPad Pro 12.9″','iPad6,8':'iPad Pro 12.9″',
+  'iPad6,11':'iPad 5','iPad6,12':'iPad 5',
+  'iPad7,1':'iPad Pro 12.9″ 2','iPad7,2':'iPad Pro 12.9″ 2','iPad7,3':'iPad Pro 10.5″','iPad7,4':'iPad Pro 10.5″',
+  'iPad7,5':'iPad 6','iPad7,6':'iPad 6','iPad7,11':'iPad 7','iPad7,12':'iPad 7',
+  'iPad8,1':'iPad Pro 11″','iPad8,2':'iPad Pro 11″','iPad8,3':'iPad Pro 11″','iPad8,4':'iPad Pro 11″',
+  'iPad8,5':'iPad Pro 12.9″ 3','iPad8,6':'iPad Pro 12.9″ 3','iPad8,7':'iPad Pro 12.9″ 3','iPad8,8':'iPad Pro 12.9″ 3',
+  'iPad8,9':'iPad Pro 11″ 2','iPad8,10':'iPad Pro 11″ 2','iPad8,11':'iPad Pro 12.9″ 4','iPad8,12':'iPad Pro 12.9″ 4',
+  'iPad11,1':'iPad mini 5','iPad11,2':'iPad mini 5','iPad11,3':'iPad Air 3','iPad11,4':'iPad Air 3',
+  'iPad11,6':'iPad 8','iPad11,7':'iPad 8',
+  'iPad12,1':'iPad 9','iPad12,2':'iPad 9',
+  'iPad13,1':'iPad Air 4','iPad13,2':'iPad Air 4',
+  'iPad13,4':'iPad Pro 11″ 3','iPad13,5':'iPad Pro 11″ 3','iPad13,6':'iPad Pro 11″ 3','iPad13,7':'iPad Pro 11″ 3',
+  'iPad13,8':'iPad Pro 12.9″ 5','iPad13,9':'iPad Pro 12.9″ 5','iPad13,10':'iPad Pro 12.9″ 5','iPad13,11':'iPad Pro 12.9″ 5',
+  'iPad13,16':'iPad Air 5','iPad13,17':'iPad Air 5','iPad13,18':'iPad 10','iPad13,19':'iPad 10',
+  'iPad14,1':'iPad mini 6','iPad14,2':'iPad mini 6',
+  'iPad14,3':'iPad Pro 11″ 4','iPad14,4':'iPad Pro 11″ 4','iPad14,5':'iPad Pro 12.9″ 6','iPad14,6':'iPad Pro 12.9″ 6',
+  'iPad14,8':'iPad Air 11″ M2','iPad14,9':'iPad Air 11″ M2','iPad14,10':'iPad Air 13″ M2','iPad14,11':'iPad Air 13″ M2',
+  'iPad16,1':'iPad mini 7','iPad16,2':'iPad mini 7',
+  'iPad16,3':'iPad Pro 11″ M4','iPad16,4':'iPad Pro 11″ M4','iPad16,5':'iPad Pro 13″ M4','iPad16,6':'iPad Pro 13″ M4',
+  // Apple Watch
+  'Watch1,1':'Apple Watch','Watch1,2':'Apple Watch',
+  'Watch2,6':'Apple Watch Series 1','Watch2,7':'Apple Watch Series 1',
+  'Watch2,3':'Apple Watch Series 2','Watch2,4':'Apple Watch Series 2',
+  'Watch3,1':'Apple Watch Series 3','Watch3,2':'Apple Watch Series 3','Watch3,3':'Apple Watch Series 3','Watch3,4':'Apple Watch Series 3',
+  'Watch4,1':'Apple Watch Series 4','Watch4,2':'Apple Watch Series 4','Watch4,3':'Apple Watch Series 4','Watch4,4':'Apple Watch Series 4',
+  'Watch5,1':'Apple Watch Series 5','Watch5,2':'Apple Watch Series 5','Watch5,3':'Apple Watch Series 5','Watch5,4':'Apple Watch Series 5',
+  'Watch5,9':'Apple Watch SE','Watch5,10':'Apple Watch SE','Watch5,11':'Apple Watch SE','Watch5,12':'Apple Watch SE',
+  'Watch6,1':'Apple Watch Series 6','Watch6,2':'Apple Watch Series 6','Watch6,3':'Apple Watch Series 6','Watch6,4':'Apple Watch Series 6',
+  'Watch6,6':'Apple Watch Series 7','Watch6,7':'Apple Watch Series 7','Watch6,8':'Apple Watch Series 7','Watch6,9':'Apple Watch Series 7',
+  'Watch6,10':'Apple Watch SE 2','Watch6,11':'Apple Watch SE 2','Watch6,12':'Apple Watch SE 2','Watch6,13':'Apple Watch SE 2',
+  'Watch6,14':'Apple Watch Series 8','Watch6,15':'Apple Watch Series 8','Watch6,16':'Apple Watch Series 8','Watch6,17':'Apple Watch Series 8',
+  'Watch6,18':'Apple Watch Ultra',
+  'Watch7,1':'Apple Watch Series 9','Watch7,2':'Apple Watch Series 9','Watch7,3':'Apple Watch Series 9','Watch7,4':'Apple Watch Series 9',
+  'Watch7,5':'Apple Watch Ultra 2',
+  'Watch7,8':'Apple Watch Series 10','Watch7,9':'Apple Watch Series 10','Watch7,10':'Apple Watch Series 10','Watch7,11':'Apple Watch Series 10',
+  // Apple Vision Pro
+  'RealityDevice1,1':'Apple Vision Pro',
+  // Apple TV
+  'AppleTV1,1':'Apple TV 1','AppleTV2,1':'Apple TV 2','AppleTV3,1':'Apple TV 3','AppleTV3,2':'Apple TV 3',
+  'AppleTV5,3':'Apple TV 4','AppleTV6,2':'Apple TV 4K','AppleTV11,1':'Apple TV 4K 2',
+  // HomePod
+  'AudioAccessory1,1':'HomePod','AudioAccessory1,2':'HomePod','AudioAccessory5,1':'HomePod mini','AudioAccessory6,1':'HomePod 2',
+  // iPod
+  'iPod1,1':'iPod touch','iPod2,1':'iPod touch 2','iPod3,1':'iPod touch 3','iPod4,1':'iPod touch 4','iPod5,1':'iPod touch 5','iPod7,1':'iPod touch 6','iPod9,1':'iPod touch 7',
+};
+
+// HardwarePlatform → 芯片名称
+const SOC_NAME = {
+  // A-series
+  's5l8900x':'ARM1176 (S5L8900)','s5l8920x':'ARM Cortex-A8 (S5L8920)','s5l8922x':'ARM Cortex-A8 (S5L8922)',
+  's5l8930x':'ARM Cortex-A9 (S5L8930)','s5l8940x':'ARM Cortex-A9 (S5L8940)','s5l8942x':'ARM Cortex-A9 (S5L8942)',
+  's5l8945x':'ARM Cortex-A6 (S5L8945)','s5l8947x':'ARM Cortex-A6 (S5L8947)',
+  's5l8950x':'ARM Cortex-A7 (S5L8950)','s5l8955x':'ARM Cortex-A7 (S5L8955)',
+  's5l8960x':'ARM Cyclone (A7)','t7000':'ARM Typhoon (A8)','t7001':'ARM Typhoon (A8X)',
+  't8010':'ARM Twister (A9)','t8011':'ARM Twister (A9X)','t8012':'ARM Twister (A9, S2)',
+  't8015':'ARM Hurricane (A10)','t8015s':'ARM Hurricane (A10, S3)',
+  't8020':'ARM Monsoon+Mistral (A12)','t8020s':'ARM Monsoon+Mistral (A12, S4/S5)',
+  't8027':'ARM Monsoon+Mistral (A12X)','t8030':'ARM Vortex+Tempest (A13)',
+  't8101':'ARM Firestorm+Icestorm (A14)','t8103':'ARM Firestorm+Icestorm (M1)',
+  't6000':'ARM Firestorm+Icestorm (M1 Pro)','t6001':'ARM Firestorm+Icestorm (M1 Max)','t6002':'ARM Firestorm+Icestorm (M1 Ultra)',
+  't8110':'ARM Avalanche+Blizzard (A15)','t8112':'ARM Everest+Sawtooth (A16)',
+  't8120':'ARM Coll+Palma (A17 Pro)','t8130':'ARM Coll+Palma (M4)',
+  't6020':'ARM Avalanche+Blizzard (M2)','t6021':'ARM Avalanche+Blizzard (M2 Pro)','t6022':'ARM Avalanche+Blizzard (M2 Max)','t6023':'ARM Avalanche+Blizzard (M2 Ultra)',
+  't6030':'ARM Everest+Sawtooth (A18)','t6031':'ARM Everest+Sawtooth (A18 Pro)',
+  't6034':'ARM Everest+Sawtooth (M3)','t6035':'ARM Everest+Sawtooth (M3 Pro)','t6036':'ARM Everest+Sawtooth (M3 Max)','t6037':'ARM Everest+Sawtooth (M3 Ultra)',
+  't8140':'ARM (M5)',
+  // S-series (Apple Watch)
+  't8002':'ARM (S1)','t8003':'ARM (S1P)','t8004':'ARM (S2)','t8006':'ARM (S3)','t8007':'ARM (S3)',
+  't8009':'ARM (S4/S5)','t8010s':'ARM (S6)','t8014':'ARM (S7)','t8016':'ARM (S8)','t8018':'ARM (S9)',
+  // R1 (Vision Pro)
+  't6512':'ARM (R1)',
+};
+
+// Formatters
 
 function fmtDatetime(ts, tzOffsetMinutes) {
   const d = new Date((ts + (tzOffsetMinutes || 0) * 60) * 1000);
@@ -430,13 +534,19 @@ function generateReport(data) {
   let logRange = '';
   if (trend.length) logRange = `${fmtDatetimeFull(trend[0].ts, tzMin)} — ${fmtDatetimeFull(trend[trend.length - 1].ts, tzMin)}`;
 
-  // 设备信息：从 remotectl_dumpstate.txt 和 PowerLog 提取，不写死映射
+  // 设备信息：从日志动态提取 + 硬编码查找友好名称，查不到用原值
   const devInfo = data.device_info || {};
   const devCfg = data.device_config || {};
   const deviceClass = devInfo.device_class || 'Device';
   const deviceInfo = [];
-  if (devInfo.product_type) deviceInfo.push([isCn ? '型号' : 'Model', devInfo.product_type]);
-  if (devInfo.hardware_platform) deviceInfo.push([isCn ? '芯片' : 'SoC', devInfo.hardware_platform]);
+  if (devInfo.product_type) {
+    const friendlyName = PRODUCT_TYPE[devInfo.product_type] || devInfo.product_type;
+    deviceInfo.push([isCn ? '型号' : 'Model', friendlyName]);
+  }
+  if (devInfo.hardware_platform) {
+    const socFriendly = SOC_NAME[devInfo.hardware_platform] || devInfo.hardware_platform;
+    deviceInfo.push([isCn ? '芯片' : 'SoC', socFriendly]);
+  }
   if (devCfg.disk_size_gb != null) deviceInfo.push([isCn ? '存储' : 'Storage', `${devCfg.disk_size_gb} GB`]);
   if (devCfg.free_space_gb != null) deviceInfo.push([isCn ? '可用' : 'Free', `${devCfg.free_space_gb} GB`]);
 
