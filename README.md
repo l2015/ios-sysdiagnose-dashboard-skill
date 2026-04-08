@@ -1,6 +1,6 @@
 # iPhone Sysdiagnose Analyzer
 
-> OpenClaw Skill · 版本 0.2.20
+> OpenClaw Skill · 版本 0.2.22
 
 分析 iPhone sysdiagnose 诊断归档文件，提取电池健康、闪存状态、应用使用、崩溃日志等数据，生成自包含的 HTML 报告。
 
@@ -89,6 +89,10 @@ ios-sysdiagnose-dashboard-skill/
 ```
 
 ## 更新日志
+
+### v0.2.22
+- 修复 web/build.js helper 提取：`opts = {}` 默认参数中的 `{}` 被误认为函数体花括号，导致 `interactiveChartSvg` 和 `barChartSvg` 两个函数被截断，浏览器版拖入文件和点击选文件均无效
+- Helper 提取改为括号感知：跳过参数区花括号，只在外层花括号上计数
 
 ### v0.2.20
 - 新增 `analyze.sh` 一键分析脚本，简化手动使用流程

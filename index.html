@@ -795,6 +795,8 @@ async function extractAll(vfs, baseDir, maxPoints = 200) {
 }
 
 
+const VERSION = '0.2.22';
+
 const PRODUCT_TYPE = {
   // iPhone
   'iPhone1,1':'iPhone','iPhone1,2':'iPhone 3G','iPhone2,1':'iPhone 3GS',
@@ -975,9 +977,104 @@ function rangeLabel(minTs, maxTs, tzMin, isCn) {
   return `${start}~${end}`;
 }
 
-function interactiveChartSvg(points, valueKey, opts = {}
+function interactiveChartSvg(points, valueKey, opts = {}) {
+  const { width = 1000, height = 200, color = '#34c759', unit = '%',
+    yMax = null, warnLine = null, chartId = 'chart', tzOffsetMinutes = 0,
+    bands = null } = opts;
 
-function barChartSvg(items, opts = {}
+  if (points.length < 2) return '<div class="chart-empty">数据不足</div>';
+
+  const pl = 52, pr = 20, pt = 16, pb = 42;
+  const cw = width - pl - pr, ch = height - pt - pb;
+  const t0 = points[0].ts, t1 = points[points.length - 1].ts;
+  const tr = t1 - t0 || 1;
+  const values = points.map(p => p[valueKey] || 0);
+  const maxVal = yMax ?? Math.max(...values, 1);
+
+  const tx = ts => pl + (ts - t0) / tr * cw;
+  const ty = val => pt + ch - val / maxVal * ch;
+
+  // Screen-on bands
+  let bandsSvg = '';
+  if (bands && bands.length) {
+    for (const b of bands) {
+      const x1 = Math.max(pl, tx(b.start)), x2 = Math.min(pl + cw, tx(b.end));
+      if (x2 > x1 + 1) {
+        bandsSvg += `<rect x="${x1.toFixed(1)}" y="${pt}" width="${(x2 - x1).toFixed(1)}" height="${ch}" fill="${b.color || '#34c759'}" opacity="${b.opacity || 0.08}"/>`;
+      }
+    }
+  }
+
+  // Line path
+  const pathParts = points.map((p, i) =>
+    `${i === 0 ? 'M' : 'L'}${tx(p.ts).toFixed(1)},${ty(p[valueKey] || 0).toFixed(1)}`
+  );
+  const path = pathParts.join(' ');
+  const fillPath = `${path} L${tx(points[points.length - 1].ts).toFixed(1)},${pt + ch} L${tx(t0).toFixed(1)},${pt + ch} Z`;
+
+  // Grid lines
+  let timeSvg = '';
+  for (let i = 0; i < 7; i++) {
+    const f = i / 6, x = pl + f * cw, ts = t0 + f * tr;
+    timeSvg += `<text x="${x.toFixed(0)}" y="${pt + ch + 18}" text-anchor="middle" class="axis-label">${fmtDatetime(ts, tzOffsetMinutes)}</text>`;
+    timeSvg += `<line x1="${x.toFixed(0)}" y1="${pt}" x2="${x.toFixed(0)}" y2="${pt + ch}" class="grid-line"/>`;
+  }
+
+  let ySvg = '';
+  for (let i = 0; i < 5; i++) {
+    const val = i / 4 * maxVal, y = ty(val);
+    ySvg += `<text x="${pl - 8}" y="${y + 4}" text-anchor="end" class="axis-label">${val.toFixed(0)}${unit}</text>`;
+    if (i > 0) ySvg += `<line x1="${pl}" y1="${y.toFixed(1)}" x2="${pl + cw}" y2="${y.toFixed(1)}" class="grid-line"/>`;
+  }
+
+  // Warning line
+  let warnSvg = '';
+  if (warnLine != null) {
+    const wy = ty(warnLine);
+    warnSvg = `<line x1="${pl}" y1="${wy.toFixed(1)}" x2="${pl + cw}" y2="${wy.toFixed(1)}" stroke="#ff3b30" stroke-width="1" stroke-dasharray="6,3" opacity=".5"/><text x="${pl + cw - 4}" y="${wy - 6}" fill="#ff3b30" font-size="11" text-anchor="end" font-weight="600">${Math.round(warnLine)}${unit}</text>`;
+  }
+
+  // Hover points
+  const hover = points.map(p => {
+    const x = tx(p.ts), y = ty(p[valueKey] || 0);
+    const val = (p[valueKey] || 0).toFixed(1);
+    const tsStr = fmtDatetimeFull(p.ts, tzOffsetMinutes);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="8" fill="transparent" class="hover-point" data-val="${val}" data-time="${tsStr}" data-unit="${unit}"/>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${width} ${height}" style="width:100%;height:${height}px" xmlns="http://www.w3.org/2000/svg" class="chart-svg" id="${chartId}">
+<defs><linearGradient id="g_${chartId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${color}" stop-opacity=".12"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+${bandsSvg}${timeSvg}${ySvg}
+<line x1="${pl}" y1="${pt}" x2="${pl}" y2="${pt + ch}" stroke="#3a3a3c" stroke-width="1"/>
+<line x1="${pl}" y1="${pt + ch}" x2="${pl + cw}" y2="${pt + ch}" stroke="#3a3a3c" stroke-width="1"/>
+<path d="${fillPath}" fill="url(#g_${chartId})"/>
+<path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+${warnSvg}${hover}
+<g id="tt_${chartId}" class="chart-tooltip" visibility="hidden" pointer-events="none">
+<line id="ttl_${chartId}" x1="0" y1="${pt}" x2="0" y2="${pt + ch}" stroke="#8e8e93" stroke-width="1" stroke-dasharray="3"/>
+<rect id="ttb_${chartId}" x="0" y="0" width="140" height="40" rx="10" fill="#2c2c2e" stroke="#48484a"/>
+<text id="ttv_${chartId}" x="0" y="0" fill="#fff" font-size="15" font-weight="700" text-anchor="middle"></text>
+<text id="ttt_${chartId}" x="0" y="0" fill="#8e8e93" font-size="11" text-anchor="middle"></text>
+</g></svg>`;
+}
+
+function barChartSvg(items, opts = {}) {
+  const { labelKey = 'label', valueKey = 'value' } = opts;
+  const total = items.reduce((s, i) => s + (i[valueKey] || 0), 0);
+  if (!total) return '';
+  // Apple HIG 柔和色系
+  const PALETTE = ['#30d158','#5e5ce6','#0a84ff','#ff9f0a','#bf5af2','#64d2ff','#ff375f','#ffd60a','#a2845e','#636366'];
+  const rows = items.slice(0, 8).map((item, i) => {
+    const val = item[valueKey] || 0;
+    const pct = (val / total * 100);
+    const color = PALETTE[i % PALETTE.length];
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+<span style="font-size:.8em;width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0">${item[labelKey]}</span>
+<div style="flex:1;height:20px;background:var(--border);border-radius:6px;overflow:hidden"><div style="height:100%;width:${pct.toFixed(1)}%;background:${color};border-radius:6px;opacity:.85;transition:width .3s"></div></div>
+<span style="font-size:.78em;color:var(--ter);width:80px;text-align:right;flex-shrink:0">${fmtBytes(val)} (${pct.toFixed(1)}%)</span></div>`;
+  }).join('');
+  return `<div style="padding:4px 0">${rows}</div>`;
+}
 
 function generateReport(data) {
   const battery = data.battery || {};

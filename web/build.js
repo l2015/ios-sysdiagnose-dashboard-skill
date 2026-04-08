@@ -27,17 +27,26 @@ const generateReportSrc = genMatch ? genMatch[1].trim() : '';
 
 // Extract helpers
 const helpers = [];
-const helperNames = ['PRODUCT_TYPE', 'SOC_NAME', 'fmtDatetime', 'fmtDatetimeFull', 'fmtBytes', 'fmtSeconds',
+const helperNames = ['VERSION', 'PRODUCT_TYPE', 'SOC_NAME', 'fmtDatetime', 'fmtDatetimeFull', 'fmtBytes', 'fmtSeconds',
   'shortName', 'detectLanguage', 'healthColor', 'rangeLabel', 'interactiveChartSvg', 'barChartSvg'];
 for (const name of helperNames) {
-  const re = new RegExp(`^(const ${name}|function ${name})[^{]*\\{`, 'm');
+  const re = new RegExp(`^(const ${name}|function ${name})`, 'm');
   const m = reportSrc.match(re);
   if (m) {
     const start = m.index;
-    let depth = 0, end = start;
+    // Find first '{' that is NOT inside a default param (e.g. opts = {})
+    // Strategy: track paren depth, only count braces outside parens
+    let parenDepth = 0, braceStart = -1, depth = 0, end = start;
     for (let i = start; i < reportSrc.length; i++) {
-      if (reportSrc[i] === '{') depth++;
-      if (reportSrc[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
+      const ch = reportSrc[i];
+      if (ch === ';' && braceStart === -1 && parenDepth === 0) { end = i + 1; break; }
+      if (ch === '(') parenDepth++;
+      else if (ch === ')') parenDepth--;
+      else if (ch === '{' && braceStart === -1 && parenDepth === 0) { braceStart = i; depth = 1; }
+      else if (braceStart !== -1) {
+        if (ch === '{') depth++;
+        if (ch === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
+      }
     }
     helpers.push(reportSrc.slice(start, end));
   }
