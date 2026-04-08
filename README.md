@@ -99,6 +99,8 @@ ios-sysdiagnose-dashboard-skill/
 - 浏览器版 `extractAll` 新增诊断日志（`_diag` 字段），PowerLog 未找到时在 UI 显示警告条
 - 补齐浏览器版缺失的提取函数：`parseBrightnessTrend`、`parseAppEnergy`、`parseAppCpu`、`parseProcessExits`
 - 重做 Debug 模式：诊断面板显示 6 模块状态（绿●正常/红●缺失）+ 原始日志；popup 不再 4 秒自动消失，点击外部关闭
+- 修复 build.js `<script>` 转义 bug：仅转义 `</script>`（防止 HTML 解析器提前关闭外层 script），不再转义 `<script>`（在 JS 字符串中无害）
+- 崩溃分析诊断增强：控制台输出目录内实际文件数和类型
 
 ### v0.2.22
 - 修复 web/build.js helper 提取：`opts = {}` 默认参数中的 `{}` 被误认为函数体花括号，导致 `interactiveChartSvg` 和 `barChartSvg` 两个函数被截断
