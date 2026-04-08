@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const VERSION = '0.2.22';
+const VERSION = '0.2.23';
 
 // ─── Device Model Lookup ────────────────────────────────────────────────────
 // ProductType → 友好名称，覆盖 iPhone/iPad/Watch/Vision/TV/HomePod/iPod
