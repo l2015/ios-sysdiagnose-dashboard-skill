@@ -1,6 +1,6 @@
 ---
 name: ios-sysdiagnose-dashboard-skill
-version: 0.2.28
+version: 0.2.29
 description: >
   Analyze iPhone sysdiagnose (.tar.gz) diagnostic archives. Extracts battery health (cycle count, capacity, trend),
   NAND flash SMART data (lifespan, writes, reads, bad blocks, PE cycles, WAF), app metrics (screen time, NAND writes, memory, network),

@@ -1,8 +1,0 @@
-{
-  "name": "ios-sysdiagnose-dashboard-skill-scripts",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "sql.js": "^1.11.0"
-  }
-}
