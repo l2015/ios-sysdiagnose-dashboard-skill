@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sysdiagnose">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>iPhone Sysdiagnose Analyzer</title>
 <style>
 .drop-zone{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);z-index:100;transition:opacity .3s}
@@ -897,7 +903,7 @@ async function extractAll(vfs, baseDir, maxPoints = 200) {
 }
 
 
-const VERSION = '0.2.29';
+const VERSION = '0.3.0';
 
 const PRODUCT_TYPE = {
   // iPhone
@@ -1604,6 +1610,15 @@ const CHART_JS_DATA = "(function(){\n// Initialize _trendData from data attribut
     }
   }
 })();
+
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then((reg) => console.log('SW registered:', reg.scope))
+      .catch((err) => console.log('SW registration failed:', err));
+  });
+}
 </script>
 </body>
 </html>

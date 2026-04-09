@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1c1c1e"/>
+  <rect x="96" y="64" width="320" height="384" rx="32" fill="#2c2c2e" stroke="#48484a" stroke-width="4"/>
+  <rect x="128" y="112" width="256" height="48" rx="8" fill="#0a84ff"/>
+  <rect x="128" y="184" width="180" height="16" rx="4" fill="#34c759"/>
+  <rect x="128" y="216" width="240" height="16" rx="4" fill="#48484a"/>
+  <rect x="128" y="248" width="200" height="16" rx="4" fill="#ff9f0a"/>
+  <rect x="128" y="280" width="256" height="16" rx="4" fill="#48484a"/>
+  <rect x="128" y="320" width="160" height="12" rx="3" fill="#636366"/>
+  <rect x="128" y="348" width="220" height="12" rx="3" fill="#636366"/>
+  <rect x="128" y="376" width="140" height="12" rx="3" fill="#636366"/>
+  <text x="256" y="450" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="32" fill="#98989d" text-anchor="middle">ANALYZER</text>
+</svg>

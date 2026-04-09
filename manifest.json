@@ -1,0 +1,25 @@
+{
+  "name": "iPhone Sysdiagnose Analyzer",
+  "short_name": "Sysdiagnose",
+  "description": "分析 Apple 设备 sysdiagnose 归档，生成 Apple HIG 暗色主题 HTML 报告",
+  "version": "0.3.0",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["utilities", "productivity"],
+  "lang": "zh-CN"
+}
