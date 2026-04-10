@@ -37,6 +37,14 @@ Supports iPhone / iPad / Watch / Vision Pro. Report auto-detects language (EN/ZH
 
 Full feature checklist → [`references/features.md`](references/features.md)
 
+## Branches
+
+| Branch | Type | Best for |
+|--------|------|---------|
+| `master` (default) | Node.js CLI | Developers, Linux servers, automation |
+| `browser-app` | Single HTML | Quick browser use, no setup |
+| `pwa` | PWA (offline capable) | Best UX, installable like an app |
+
 ## Project Structure
 
 ```

@@ -37,6 +37,14 @@ git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
 
 完整可分析项目清单 → [`references/features.md`](references/features.md)
 
+## 分支说明
+
+| 分支 | 类型 | 适用场景 |
+|------|------|---------|
+| `master`（默认） | Node.js CLI | 开发者、Linux 服务器、自动化 |
+| `browser-app` | 纯浏览器单文件 | 快速浏览器分析，无需配置 |
+| `pwa` | PWA（离线可用） | 最佳体验，可安装为应用 |
+
 ## 项目结构
 
 ```
