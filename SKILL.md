@@ -1,6 +1,6 @@
 ---
 name: ios-sysdiagnose-dashboard-skill
-version: 0.2.20
+version: 0.2.20c
 description: >
   Analyze iPhone sysdiagnose (.tar.gz) diagnostic archives. Extracts battery health (cycle count, capacity, trend),
   NAND flash SMART data (lifespan, writes, reads, bad blocks, PE cycles, WAF), app metrics (screen time, NAND writes, memory, network),
@@ -14,10 +14,9 @@ metadata:
     requires:
       node: ">=18"
     install:
-      - id: npm
-        kind: npm
-        dir: "{baseDir}/scripts"
-        label: "Install dependencies (npm install in scripts/)"
+      - kind: npm
+        dir: scripts
+        label: "Install dependencies (cd scripts && npm install)"
 ---
 
 # iPhone Sysdiagnose Analyzer
@@ -25,12 +24,12 @@ metadata:
 ## Requirements
 
 - Node.js 18+
-- `sql.js` (install via `cd {baseDir}/scripts && npm install`)
+- `sql.js` (auto-installed via `npm install`)
 
 ## Setup (one-time)
 
 ```bash
-cd {baseDir}/scripts && npm install
+cd scripts && npm install
 ```
 
 ## Pipeline
@@ -46,13 +45,13 @@ BASE=$(find "$WORK" -maxdepth 1 -type d -name "sysdiagnose_*" | head -1)
 ### 2. Extract structured data
 
 ```bash
-node {baseDir}/scripts/extract.mjs "$BASE" -o data.json
+node scripts/extract.mjs "$BASE" -o data.json
 ```
 
 ### 3. Generate HTML report
 
 ```bash
-node {baseDir}/scripts/report.mjs data.json -o ~/.openclaw/workspace/iphone-report.html
+node scripts/report.mjs data.json -o ~/.openclaw/workspace/iphone-report.html
 ```
 
 ### 4. Cleanup
@@ -64,7 +63,7 @@ rm -rf "$WORK"
 ## Quick One-Liner
 
 ```bash
-WORK=$(mktemp -d) && tar xzf "<input>.tar.gz" -C "$WORK" && BASE=$(find "$WORK" -maxdepth 1 -type d | head -1) && node {baseDir}/scripts/extract.mjs "$BASE" -o /tmp/sd-data.json && node {baseDir}/scripts/report.mjs /tmp/sd-data.json -o ~/.openclaw/workspace/iphone-report.html && rm -rf "$WORK"
+WORK=$(mktemp -d) && tar xzf "<input>.tar.gz" -C "$WORK" && BASE=$(find "$WORK" -maxdepth 1 -type d | head -1) && node scripts/extract.mjs "$BASE" -o /tmp/sd-data.json && node scripts/report.mjs /tmp/sd-data.json -o ~/.openclaw/workspace/iphone-report.html && rm -rf "$WORK"
 ```
 
 ## Extracted Data

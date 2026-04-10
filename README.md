@@ -2,15 +2,47 @@
 
 ![Version](https://img.shields.io/badge/version-0.2.20c-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![OpenClaw Skill](https://img.shields.io/badge/OpenClaw-Skill-orange) ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)
 
-Analyze Apple device sysdiagnose diagnostic archives and generate interactive HTML reports. **OpenClaw Skill · Node.js CLI · cross-platform**.
+Analyze Apple device sysdiagnose (.tar.gz) archives and generate interactive HTML reports.
 
 > 📖 中文说明 → [`README_zh.md`](README_zh.md)
 
 ---
 
-## Quick Start
+## ⚡ Quick Start
 
-**One-liner** *(recommended)*
+Upload your sysdiagnose file — **AI does the rest** (recommended):
+
+```
+# Tell OpenClaw: "分析我的 sysdiagnose 文件"
+```
+
+OpenClaw automatically installs the skill, extracts all data, and generates the report.
+
+---
+
+## 🖥️ Alternative: Web Browser (no install)
+
+Don't want the CLI? Open the report in your browser directly:
+
+```bash
+git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
+# Open browser-app/index.html and drag in your .tar.gz file
+```
+
+**browser-app** branch = same engine, pure browser, no Node.js needed.
+
+---
+
+## 💻 Manual CLI (power users)
+
+### Requirements
+
+- Node.js 18+
+- bash (Linux/macOS/WSL)
+- No native dependencies
+
+### One-liner
+
 ```bash
 git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
 cd ios-sysdiagnose-dashboard-skill
@@ -19,59 +51,46 @@ bash analyze.sh your-sysdiagnose.tar.gz
 
 Report output: `report-<date>.html`
 
-**Manual steps**
+### Manual steps
+
 ```bash
-cd scripts && npm install
-node extract.mjs <extracted-sysdiagnose-dir> -o data.json
-node report.mjs data.json -o report.html
+# Install dependencies
+cd scripts && npm install && cd ..
+
+# Step 1: Extract archive
+tar xzf your-sysdiagnose.tar.gz -C /tmp
+BASE=$(find /tmp/sysdiagnose_* -maxdepth 1 -type d | head -1)
+
+# Step 2: Extract structured data
+node scripts/extract.mjs "$BASE" -o data.json
+
+# Step 3: Generate report
+node scripts/report.mjs data.json -o report.html
 ```
 
-## Requirements
+---
 
-- Node.js 18+
-- No native dependencies — pure JavaScript (sql.js)
-
-## Features
+## ✅ Features
 
 | Module | Coverage |
 |--------|---------|
-| 🔋 Battery | Health %, charge cycles, capacity fade, temperature trend |
-| 💾 NAND | Remaining life, PE cycle count, bad blocks, write amplification |
+| 🔋 Battery | Health %, cycles, capacity fade, temperature trend |
+| 💾 NAND | Remaining life, PE cycles, bad blocks, WAF |
 | 📱 Apps | Storage writes, screen-on time, memory peak, network traffic |
-| 💥 Crashes | Jetsam, Safari, disk writes, CPU resource events |
-| 📡 Device | Model, SoC, storage capacity, baseband version |
+| 💥 Crashes | Jetsam, Safari, disk writes, CPU resource |
+| 📡 Device | Model, SoC, storage capacity, baseband |
 
 Supports iPhone / iPad / Watch / Vision Pro. Report auto-detects language (EN/ZH).
 
-## OpenClaw Skill
+## Branches
 
-After installation, upload a sysdiagnose archive and the AI automatically:
+| Branch | Type | Best for |
+|--------|------|----------|
+| `master` (default) | Node.js CLI | Developers, Linux servers, automation |
+| `browser-app` | Single HTML | Quick browser use, no setup |
+| `pwa` | PWA (offline capable) | Best UX, installable like an app |
 
-1. Extracts the archive
-2. Parses PowerLog (SQLite) + ASP SMART + crash logs
-3. Generates the HTML report
-
-### Install
-
-```bash
-git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git ~/.openclaw/skills/ios-sysdiagnose-dashboard-skill
-cd ~/.openclaw/skills/ios-sysdiagnose-dashboard-skill/scripts && npm install
-```
-
-## Project Structure
-
-```
-├── analyze.sh               # One-liner analysis script
-├── SKILL.md                 # OpenClaw Skill definition
-├── _meta.json               # ClawHub metadata
-├── package.json
-├── LICENSE
-├── scripts/
-│   ├── extract.mjs          # Data extraction
-│   └── report.mjs           # HTML report generation
-└── references/
-    └── features.md          # Feature checklist
-```
+---
 
 ## Version
 

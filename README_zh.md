@@ -2,15 +2,47 @@
 
 ![版本](https://img.shields.io/badge/版本-0.2.20c-blue) ![许可证](https://img.shields.io/badge/许可证-MIT-green) ![OpenClaw Skill](https://img.shields.io/badge/OpenClaw-Skill-orange) ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)
 
-分析 Apple 设备 sysdiagnose 诊断归档文件，提取电池健康、闪存状态、应用使用、崩溃日志等数据，生成自包含的 HTML 报告。**OpenClaw Skill · Node.js CLI · 跨平台**。
+分析 Apple 设备 sysdiagnose（.tar.gz）诊断归档，提取电池健康、闪存状态、应用使用、崩溃日志等数据，生成交互式 HTML 报告。
 
 > 📖 English → [`README.md`](README.md)
 
 ---
 
-## 快速开始
+## ⚡ 快速开始
 
-**一键脚本**（推荐）
+上传你的 sysdiagnose 文件 — **AI 自动完成全部工作**（推荐）：
+
+```
+# 告诉 OpenClaw："分析我的 sysdiagnose 文件"
+```
+
+OpenClaw 自动安装 Skill、提取数据、生成报告。无需手动配置。
+
+---
+
+## 🖥️备选：浏览器打开（无需安装）
+
+不想用命令行？直接在浏览器里打开分析：
+
+```bash
+git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
+# 打开 browser-app/index.html，将 .tar.gz 文件拖入即可
+```
+
+**browser-app** 分支 = 同一分析引擎，纯浏览器运行，无需 Node.js。
+
+---
+
+## 💻 手动 CLI（高级用户）
+
+### 环境要求
+
+- Node.js 18+
+- bash（Linux / macOS / WSL）
+- 无原生依赖
+
+### 一键脚本
+
 ```bash
 git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
 cd ios-sysdiagnose-dashboard-skill
@@ -19,19 +51,26 @@ bash analyze.sh your-sysdiagnose.tar.gz
 
 报告输出：`report-<日期>.html`
 
-**手动分步**
+### 手动分步
+
 ```bash
-cd scripts && npm install
-node extract.mjs <解压后的sysdiagnose目录> -o data.json
-node report.mjs data.json -o report.html
+# 安装依赖
+cd scripts && npm install && cd ..
+
+# 第一步：解压归档
+tar xzf your-sysdiagnose.tar.gz -C /tmp
+BASE=$(find /tmp/sysdiagnose_* -maxdepth 1 -type d | head -1)
+
+# 第二步：提取结构化数据
+node scripts/extract.mjs "$BASE" -o data.json
+
+# 第三步：生成 HTML 报告
+node scripts/report.mjs data.json -o report.html
 ```
 
-## 环境要求
+---
 
-- Node.js 18+
-- 零原生依赖，纯 JavaScript（sql.js）
-
-## 功能
+## ✅ 功能
 
 | 模块 | 分析内容 |
 |------|---------|
@@ -43,35 +82,15 @@ node report.mjs data.json -o report.html
 
 支持 iPhone / iPad / Watch / Vision Pro。报告自动检测中英文。
 
-## 作为 OpenClaw Skill 使用
+## 分支说明
 
-安装后，用户只需上传 sysdiagnose 文件，AI 自动完成：
+| 分支 | 类型 | 适用场景 |
+|------|------|---------|
+| `master`（默认） | Node.js CLI | 开发者、Linux 服务器、自动化 |
+| `browser-app` | 纯浏览器单文件 | 快速浏览器分析，无需配置 |
+| `pwa` | PWA（离线可用） | 最佳体验，可安装为应用 |
 
-1. 解压归档
-2. 提取数据（PowerLog + ASP SMART + 崩溃日志）
-3. 生成 HTML 报告
-
-### 安装
-
-```bash
-git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git ~/.openclaw/skills/ios-sysdiagnose-dashboard-skill
-cd ~/.openclaw/skills/ios-sysdiagnose-dashboard-skill/scripts && npm install
-```
-
-## 项目结构
-
-```
-├── analyze.sh               # 一键分析脚本
-├── SKILL.md                 # OpenClaw Skill 定义
-├── _meta.json               # ClawHub 元数据
-├── package.json
-├── LICENSE
-├── scripts/
-│   ├── extract.mjs          # 数据提取
-│   └── report.mjs           # HTML 报告生成
-└── references/
-    └── features.md          # 功能清单
-```
+---
 
 ## 版本
 
