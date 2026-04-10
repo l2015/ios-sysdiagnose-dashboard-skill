@@ -47,7 +47,6 @@ Full feature checklist → [`references/features.md`](references/features.md)
 ├── sw.js                    # Service Worker (offline cache)
 ├── lib/                     # Browser dependencies (pako / sql.js / WASM)
 ├── icons/                   # PWA icons
-├── SKILL.md                 # OpenClaw Skill definition
 └── references/
     └── features.md          # Feature checklist
 ```
