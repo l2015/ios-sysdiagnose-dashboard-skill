@@ -10,10 +10,12 @@
 
 ## ⚡ 快速开始
 
-**第一步 — 告诉 OpenClaw：** "帮我安装这个仓库" + 仓库地址
+**第一步 — 安装 Skill：**
+告诉 OpenClaw 安装 iPhone sysdiagnose 分析工具，仓库地址：
 https://github.com/l2015/ios-sysdiagnose-dashboard-skill
 
-**第二步 — 告诉 OpenClaw 分析日志路径：** 把 sysdiagnose 文件路径给它，OpenClaw 自动完成分析。
+**第二步 — 分析文件：**
+把 sysdiagnose .tar.gz 文件路径丢给 OpenClaw，它会自动完成分析。
 
 ---
 
