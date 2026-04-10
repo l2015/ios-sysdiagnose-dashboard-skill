@@ -4,19 +4,19 @@
 
 Analyze Apple device sysdiagnose diagnostic archives and generate interactive HTML reports. **Pure browser · single HTML file · no server required**.
 
-> 📖 中文说明 �?[`README_zh.md`](README_zh.md)
+> 📖 中文说明 �?[`README_zh.md`](README_zh.md)
 
 ---
 
 ## Quick Start
 
-**Option 1 · GitHub Pages** *(recommended �?no download needed)*
+**Option 1 · GitHub Pages** *(recommended �?no download needed)*
 > Open [l2015.github.io/ios-sysdiagnose-dashboard-skill](https://l2015.github.io/ios-sysdiagnose-dashboard-skill) and drag in your `.tar.gz`
 
 **Option 2 · Local file**
 ```bash
 git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
-# or Download ZIP �?extract
+# or Download ZIP �?extract
 ```
 Then open `index.html` in your browser and drag in your `.tar.gz` file.
 
@@ -24,7 +24,7 @@ Report output: `report-<date>.html`
 
 ## Requirements
 
-No requirements �?runs entirely in the browser. Works offline after first load.
+No requirements �?runs entirely in the browser. Works offline after first load.
 
 ## Features
 
@@ -38,7 +38,7 @@ No requirements �?runs entirely in the browser. Works offline after first load.
 
 Supports iPhone / iPad / Watch / Vision Pro. Report auto-detects language (EN/ZH).
 
-Full feature checklist �?[`references/features.md`](references/features.md)
+Full feature checklist �?[`references/features.md`](references/features.md)
 
 ## Branches
 
@@ -53,7 +53,7 @@ Full feature checklist �?[`references/features.md`](references/features.md)
 ```
 ├── index.html               # Single-file browser app (drag .tar.gz here)
 ├── references/
-�?  └── features.md          # Feature checklist
+�?  └── features.md          # Feature checklist
 ├── _meta.json               # ClawHub metadata
 └── package.json
 ```
@@ -62,12 +62,12 @@ Full feature checklist �?[`references/features.md`](references/features.md)
 
 ## Version
 
-Current: **v0.2.29** �?Pure browser single-file release
+Current: **v0.2.29** �?Pure browser single-file release
 
-Full changelog �?[`CHANGELOG.md`](CHANGELOG.md)
 
 ---
 
 ## License
 
 MIT
+
