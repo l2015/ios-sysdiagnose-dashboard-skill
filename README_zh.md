@@ -10,15 +10,10 @@
 
 ## ⚡ 快速开始
 
-**第一步 — 安装 Skill：**
+**第一步 — 告诉 OpenClaw：** "帮我安装这个仓库" + 仓库地址
+https://github.com/l2015/ios-sysdiagnose-dashboard-skill
 
-```bash
-npx skills add l2015/ios-sysdiagnose-dashboard-skill@ios-sysdiagnose-dashboard-skill -g -y
-```
-
-**第二步 — 开始分析：**
-
-把 sysdiagnose 文件路径告诉 OpenClaw，AI 自动完成全部工作。
+**第二步 — 告诉 OpenClaw 分析日志路径：** 把 sysdiagnose 文件路径给它，OpenClaw 自动完成分析。
 
 ---
 
