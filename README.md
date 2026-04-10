@@ -21,8 +21,11 @@ Drop the sysdiagnose .tar.gz file path into the chat — OpenClaw handles the re
 
 ## 🖥️ Alternative: Web Browser (no install)
 
-Don't want the CLI? Open the report in your browser directly:
+Want the web version instead? No install needed — just open and go:
 
+**→ [l2015.github.io/ios-sysdiagnose-dashboard-skill](https://l2015.github.io/ios-sysdiagnose-dashboard-skill)**
+
+Or clone and run locally:
 ```bash
 git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
 # Open browser-app/index.html and drag in your .tar.gz file

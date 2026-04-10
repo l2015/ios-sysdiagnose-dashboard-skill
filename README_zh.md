@@ -21,8 +21,11 @@ https://github.com/l2015/ios-sysdiagnose-dashboard-skill
 
 ## 🖥️备选：浏览器打开（无需安装）
 
-不想用命令行？直接在浏览器里打开分析：
+不想用命令行？直接网页打开，拖入文件即可分析：
 
+**→ [l2015.github.io/ios-sysdiagnose-dashboard-skill](https://l2015.github.io/ios-sysdiagnose-dashboard-skill)**
+
+或本地运行：
 ```bash
 git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
 # 打开 browser-app/index.html，将 .tar.gz 文件拖入即可
