@@ -8,13 +8,13 @@ Analyze Apple device sysdiagnose diagnostic archives and generate interactive HT
 
 ## Quick Start
 
-**Option 1 · GitHub Pages** *(recommended �?no download needed)*
+**Option 1 · GitHub Pages** *(recommended �?no download needed)*
 > Open [l2015.github.io/ios-sysdiagnose-dashboard-skill](https://l2015.github.io/ios-sysdiagnose-dashboard-skill) and drag in your `.tar.gz`
 
 **Option 2 · Local file**
 ```bash
 git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
-# or Download ZIP �?extract
+# or Download ZIP �?extract
 # double-click index.html, then drag in .tar.gz
 ```
 
@@ -35,14 +35,14 @@ git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
 
 Supports iPhone / iPad / Watch / Vision Pro. Report auto-detects language (EN/ZH).
 
-Full feature checklist �?[`references/features.md`](references/features.md)
+Full feature checklist �?[`references/features.md`](references/features.md)
 
 ---
 
 ## Project Structure
 
 ```
-├── index.html               # Entry point �?drag .tar.gz here (build artifact, do not edit manually)
+├── index.html               # Entry point �?drag .tar.gz here (build artifact, do not edit manually)
 ├── manifest.json            # PWA manifest
 ├── sw.js                    # Service Worker (offline cache)
 ├── lib/                     # Browser dependencies (pako / sql.js / WASM)
@@ -67,12 +67,12 @@ Full feature checklist �?[`references/features.md`](references/features.md)
 
 ## Version
 
-Current: **v0.3.1** �?Memory-safe interval sampling (fixes OOM on large iPhone Safari / PWA data >200MB)
+Current: **v0.3.1** �?Memory-safe interval sampling (fixes OOM on large iPhone Safari / PWA data >200MB)
 
-Full changelog �?[`CHANGELOG.md`](CHANGELOG.md)
 
 ---
 
 ## License
 
 MIT
+
