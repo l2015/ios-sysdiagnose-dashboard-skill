@@ -28,7 +28,7 @@ The PowerLog `.PLSQL` database contains 600+ tables. Below are the categories an
 | GPS usage | PLLocationAgent_EventForward_ClientStatus | ✅ |
 | Network traffic | PLProcessNetworkAgent_EventInterval_UsageDiff | ✅ |
 | Cellular data | PLAppTimeService_Aggregate_CellularCondition | 🔲 |
-| App exits (reason) | PLApplicationAgent_EventPoint_ApplicationExitReason | 🔲 |
+| App exits (reason) | PLApplicationAgent_EventPoint_ApplicationExitReason | ✅ |
 | App launch time | PLProcessMonitorAgent_EventBackward_AppLaunchTimeSeries | 🔲 |
 | Widget updates | PLApplicationAgent_Aggregate_WidgetUpdates | 🔲 |
 | Notifications per app | PLSpringBoardAgent_Aggregate_SBNotifications_Aggregate | 🔲 |
@@ -73,7 +73,7 @@ The PowerLog `.PLSQL` database contains 600+ tables. Below are the categories an
 | CPU residency | PLIOReportAgent_EventBackward_CorePerformanceLevelResidency | 🔲 |
 | SoC energy | PLIOReportAgent_EventBackward_EnergyModel | 🔲 |
 | Kernel task CPU | PLProcessMonitorAgent_EventInterval_KernelTaskMonitor | 🔲 |
-| Process exits | PLProcessMonitorAgent_EventPoint_ProcessExit | 🔲 |
+| Process exits | PLProcessMonitorAgent_EventPoint_ProcessExit | ✅ |
 | Swap usage | PLProcessMonitorAgent_EventPoint_SystemFreezerStats | 🔲 |
 | Power modes | PowerModes_*_1_2 | 🔲 |
 
