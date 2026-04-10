@@ -991,8 +991,6 @@ async function extractAll(vfs, baseDir, maxPoints = 200) {
       const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
       return URL.createObjectURL(new Blob([bytes], { type: 'application/wasm' }));
     } });
-      const plBuf = vfs.readFileSync(pl);
-      diag.push('PLSQL size: ' + (plBuf ? plBuf.length : 0) + ' bytes');
       const db = new SQL.Database(plBuf);
       try {
         data.battery = parseBattery(db);
@@ -1708,7 +1706,7 @@ const CHART_JS_DATA = "(function(){\n// Initialize _trendData from data attribut
       setProgress(90, "生成报告...");
       reportContainer.innerHTML = generateReport(data);
       var s = document.createElement("script");
-      s.text = CHART_JS_DATA;
+      s.textContent = CHART_JS_DATA;
       document.body.appendChild(s);
       dropZone.classList.add("hidden");
       // Set debug diagnostics
