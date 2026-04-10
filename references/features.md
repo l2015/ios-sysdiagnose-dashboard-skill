@@ -1,4 +1,4 @@
-# Analyzable Features from PowerLog Database
+﻿# Analyzable Features from PowerLog Database
 
 The PowerLog `.PLSQL` database contains 600+ tables. Below are the categories and features that can be extracted.
 
@@ -28,7 +28,7 @@ The PowerLog `.PLSQL` database contains 600+ tables. Below are the categories an
 | GPS usage | PLLocationAgent_EventForward_ClientStatus | ✅ |
 | Network traffic | PLProcessNetworkAgent_EventInterval_UsageDiff | ✅ |
 | Cellular data | PLAppTimeService_Aggregate_CellularCondition | 🔲 |
-| App exits (reason) | PLApplicationAgent_EventPoint_ApplicationExitReason | 🔲 |
+| App exits (reason) | PLApplicationAgent_EventPoint_ApplicationExitReason | ✅ |
 | App launch time | PLProcessMonitorAgent_EventBackward_AppLaunchTimeSeries | 🔲 |
 | Widget updates | PLApplicationAgent_Aggregate_WidgetUpdates | 🔲 |
 | Notifications per app | PLSpringBoardAgent_Aggregate_SBNotifications_Aggregate | 🔲 |

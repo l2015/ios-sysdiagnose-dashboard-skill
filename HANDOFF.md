@@ -1,6 +1,6 @@
-# iPhone Sysdiagnose Analyzer — AI 交接文档
+﻿# iPhone Sysdiagnose Analyzer — AI 交接文档
 
-> 版本: v0.2.27
+> 版本: v0.2.29
 > 最后更新: 2026-04-08 13:15 CST
 
 ## ⚠️ 必读
