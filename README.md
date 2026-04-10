@@ -51,7 +51,6 @@ Full feature checklist → [`references/features.md`](references/features.md)
 ├── index.html               # Single-file browser app (drag .tar.gz here)
 ├── references/
 │   └── features.md          # Feature checklist
-├── SKILL.md                 # OpenClaw Skill definition
 ├── _meta.json               # ClawHub metadata
 └── package.json
 ```
