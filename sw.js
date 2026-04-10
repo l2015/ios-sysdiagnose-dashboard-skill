@@ -3,14 +3,12 @@
  * Provides offline caching and enables "Add to Home Screen"
  */
 
-const CACHE_NAME = 'sysdiagnose-v0.3.2';
+const CACHE_NAME = 'sysdiagnose-v0.3.4';
 const ASSETS = [
   './',
   './index.html',
+  './worker.js',
   './manifest.json',
-  './lib/pako.min.js',
-  './lib/sql.js',
-  './lib/sql-wasm.wasm',
   './icons/icon-192.png',
   './icons/icon-512.png'
 ];
