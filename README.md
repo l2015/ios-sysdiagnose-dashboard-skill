@@ -10,13 +10,15 @@ Analyze Apple device sysdiagnose (.tar.gz) archives and generate interactive HTM
 
 ## ⚡ Quick Start
 
-Upload your sysdiagnose file — **AI does the rest** (recommended):
+**Step 1 — Install the skill:**
 
-```
-# Tell OpenClaw: "分析我的 sysdiagnose 文件"
+```bash
+npx skills add l2015/ios-sysdiagnose-dashboard-skill@ios-sysdiagnose-dashboard-skill -g -y
 ```
 
-OpenClaw automatically installs the skill, extracts all data, and generates the report.
+**Step 2 — Analyze your file:**
+
+Give OpenClaw the sysdiagnose .tar.gz file path and let the AI do the rest.
 
 ---
 

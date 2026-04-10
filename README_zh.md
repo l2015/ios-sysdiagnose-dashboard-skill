@@ -10,13 +10,15 @@
 
 ## ⚡ 快速开始
 
-上传你的 sysdiagnose 文件 — **AI 自动完成全部工作**（推荐）：
+**第一步 — 安装 Skill：**
 
-```
-# 告诉 OpenClaw："分析我的 sysdiagnose 文件"
+```bash
+npx skills add l2015/ios-sysdiagnose-dashboard-skill@ios-sysdiagnose-dashboard-skill -g -y
 ```
 
-OpenClaw 自动安装 Skill、提取数据、生成报告。无需手动配置。
+**第二步 — 开始分析：**
+
+把 sysdiagnose 文件路径告诉 OpenClaw，AI 自动完成全部工作。
 
 ---
 
