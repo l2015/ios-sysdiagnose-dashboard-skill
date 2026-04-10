@@ -10,11 +10,14 @@ Analyze Apple device sysdiagnose diagnostic archives and generate interactive HT
 
 ## Quick Start
 
+**Option 1 · GitHub Pages** *(recommended — no download needed)*
+> Open [l2015.github.io/ios-sysdiagnose-dashboard-skill](https://l2015.github.io/ios-sysdiagnose-dashboard-skill) and drag in your `.tar.gz`
+
+**Option 2 · Local file**
 ```bash
 git clone https://github.com/l2015/ios-sysdiagnose-dashboard-skill.git
 # or Download ZIP → extract
 ```
-
 Then open `index.html` in your browser and drag in your `.tar.gz` file.
 
 Report output: `report-<date>.html`
