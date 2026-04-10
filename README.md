@@ -56,6 +56,16 @@ Full feature checklist → [`references/features.md`](references/features.md)
 
 ---
 
+## Branches
+
+| Branch | Type | Best for |
+|--------|------|---------|
+| `master` (default) | Node.js CLI | Developers, Linux servers, automation |
+| `browser-app` | Single HTML | Quick browser use, no setup |
+| `pwa` | PWA (offline capable) | Best UX, installable like an app |
+
+---
+
 ## Version
 
 Current: **v0.3.1** — Memory-safe interval sampling (fixes OOM on large iPhone Safari / PWA data >200MB)
