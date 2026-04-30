@@ -1,108 +1,17 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#000000">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Sysdiagnose">
-<link rel="manifest" href="./manifest.json">
-<link rel="apple-touch-icon" href="./icons/icon-192.png">
-<title>iPhone Sysdiagnose Analyzer</title>
-<style>
-.drop-zone{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);z-index:100;transition:opacity .3s}
-.drop-zone.hidden{opacity:0;pointer-events:none}
-.drop-zone.drag-over{background:#0a0a1a}
-.drop-zone-inner{width:400px;height:260px;border:2px dashed #48484a;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:border-color .2s,background .2s;cursor:pointer}
-.drop-zone.drag-over .drop-zone-inner{border-color:var(--green);background:rgba(52,199,89,.05)}
-.drop-zone-inner svg{width:48px;height:48px;fill:#636366}
-.drop-zone-inner p{color:var(--sec);font-size:.95em;text-align:center;line-height:1.6}
-.drop-zone-inner .browse{color:var(--blue);cursor:pointer;text-decoration:underline}
-.progress-bar{width:300px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:8px}
-.progress-bar .fill{height:100%;background:var(--green);width:0%;transition:width .3s}
-.progress-text{color:var(--sec);font-size:.82em;margin-top:6px}
+﻿#!/usr/bin/env node
+/**
+ * iOS Sysdiagnose Report Generator
+ * Generates an Apple HIG-style dark theme HTML report from extracted data.
+ * Usage: node report.mjs data.json [-o report.html]
+ */
 
-:root{--bg:#000;--card:#1c1c1e;--border:#2c2c2e;--green:#34c759;--yellow:#ff9f0a;--red:#ff3b30;--orange:#ff6723;--blue:#0a84ff;--text:#f5f5f7;--sec:#98989d;--ter:#636366}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
-.hero{padding:48px 24px 28px;text-align:center;background:linear-gradient(180deg,#0a0a1a 0%,var(--bg) 100%)}
-.hero h1{font-size:2em;font-weight:700;letter-spacing:-.02em}
-.hero .sub{color:var(--sec);font-size:.88em;margin-top:6px}
-.hero .meta{color:var(--ter);font-size:.8em;margin-top:10px;line-height:1.6}
-.device-strip{display:flex;justify-content:center;gap:24px;margin-top:16px;flex-wrap:wrap}
-.device-strip .item{text-align:center}
-.device-strip .val{font-size:.95em;font-weight:600}
-.device-strip .lbl{font-size:.7em;color:var(--sec);text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
-.wrap{max-width:1080px;margin:0 auto;padding:0 16px 48px}
-.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
-.kpi{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center}
-.kpi .val{font-size:1.8em;font-weight:700;letter-spacing:-.02em;line-height:1.1}
-.kpi .lbl{font-size:.72em;color:var(--sec);text-transform:uppercase;letter-spacing:.5px;margin-top:6px;line-height:1.2}
-.card-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;overflow:hidden;display:flex;flex-direction:column}
-.card.full{grid-column:1/-1}
-.card-title{font-size:.75em;text-transform:uppercase;letter-spacing:.7px;color:var(--sec);margin-bottom:10px;font-weight:600}
-.stat-big{font-size:1.9em;font-weight:700;letter-spacing:-.02em;line-height:1}
-.stat-sub{font-size:.82em;color:var(--sec);margin-top:5px}
-.stat-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;font-size:.88em;border-bottom:1px solid rgba(255,255,255,.03)}
-.stat-row:last-child{border-bottom:none}
-.stat-row .k{color:var(--sec);display:flex;align-items:center;gap:4px}
-.stat-row .v{font-weight:600}
-.bar{height:5px;background:rgba(255,255,255,.05);border-radius:3px;margin:8px 0;overflow:hidden}
-.bar>div{height:100%;border-radius:3px}
-table{width:100%;border-collapse:collapse;font-size:.88em}
-th{text-align:left;font-size:.7em;color:var(--ter);text-transform:uppercase;letter-spacing:.5px;padding:5px 6px;border-bottom:1px solid var(--border);font-weight:600}
-th.sortable{cursor:pointer;user-select:none}
-th.sortable:hover{color:var(--sec)}
-th.sortable::after{content:' ⇅';opacity:.3;font-size:.8em}
-th.sortable.asc::after{content:' ↑';opacity:.8}
-th.sortable.desc::after{content:' ↓';opacity:.8}
-.stat-help{font-size:.75em;color:var(--ter);margin-top:4px;line-height:1.4}
-.mini-bar{display:inline-block;height:4px;border-radius:2px;vertical-align:middle;margin-left:6px}
-.bat-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05)}
-.bat-stat{text-align:center}
-.bat-stat-val{font-size:1.1em;font-weight:700}
-.bat-stat-lbl{font-size:.68em;color:var(--ter);margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
-.period-btns{display:flex;gap:4px;margin-bottom:8px}
-.period-btn{background:var(--border);border:none;color:var(--sec);font-size:.72em;padding:4px 12px;border-radius:8px;cursor:pointer;font-weight:600;letter-spacing:.3px;transition:background .15s,color .15s}
-.period-btn:hover{color:var(--text)}
-.period-btn.active{background:var(--green);color:#000}
-.crash-toggle{cursor:pointer;color:var(--blue);font-size:.95em;font-style:normal;margin:0 8px;border:1.5px solid var(--blue);opacity:.7;transition:opacity .15s;padding:1px 5px;border-radius:6px;vertical-align:middle}
-.crash-toggle:hover{opacity:1;background:rgba(10,132,255,.1)}
-.crash-apps{padding:4px 0 4px 16px;border-left:2px solid var(--border);margin:0 0 4px 4px;font-size:.85em}
-body.debug .stat-row,body.debug .kpi,body.debug .bat-stat{cursor:help;outline:1px dashed transparent;transition:outline-color .15s}
-body.debug .stat-row:hover,body.debug .kpi:hover,body.debug .bat-stat:hover{outline-color:rgba(10,132,255,.4)}
-body.debug #debug-badge{background:var(--blue);color:#000;border-color:var(--blue)}
-td{padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.02)}
-tr:last-child td{border-bottom:none}
-.tip{cursor:help;color:var(--ter);font-size:.82em;margin-left:3px;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--ter);font-style:normal;font-weight:600;line-height:1}
-.tip-popup{position:fixed;background:#2c2c2e;color:var(--text);padding:10px 14px;border-radius:10px;font-size:.82em;line-height:1.5;max-width:260px;z-index:1000;border:1px solid #48484a;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none}
-.chart-svg{cursor:crosshair;display:block}
-.chart-svg .axis-label{font-size:12px;fill:#636366;font-family:-apple-system,sans-serif}
-.chart-svg .grid-line{stroke:#2c2c2e;stroke-width:.5}
-.chart-svg .hover-point{cursor:pointer}
-.chart-tooltip rect{filter:drop-shadow(0 2px 8px rgba(0,0,0,.4))}
-.chart-empty{height:100px;display:flex;align-items:center;justify-content:center;color:var(--ter);font-size:.88em}
-.footer{text-align:center;padding:32px 0;color:var(--ter);font-size:.78em;border-top:1px solid var(--border);margin-top:24px}
-@media(max-width:768px){.card-grid{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(3,1fr)}.device-strip{gap:12px}.hero{padding:32px 16px 20px}.hero h1{font-size:1.5em}.kpi .val{font-size:1.3em}.stat-big{font-size:1.5em}}
-@media(max-width:480px){.kpi-row{grid-template-columns:repeat(2,1fr)}.device-strip{gap:8px}}
-</style>
-</head>
-<body>
-<div class="drop-zone" id="dropZone">
-  <div class="drop-zone-inner" id="dropInner">
-    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h5v7h7v9H6z"/></svg>
-    <p>拖入 <strong>.tar.gz</strong> sysdiagnose 文件<br>或 <span class="browse" id="browseBtn">点击选择文件</span></p>
-    <div class="progress-bar" id="progressBar" style="display:none"><div class="fill" id="progressFill"></div></div>
-    <div class="progress-text" id="progressText"></div>
-  </div>
-  <input type="file" id="fileInput" accept=".tar.gz,.tgz" style="display:none">
-</div>
-<div id="reportContainer"></div>
-<script>
+import { readFileSync, writeFileSync } from 'node:fs';
+
 const VERSION = '0.3.0';
 
+// ─── Device Model Lookup ────────────────────────────────────────────────────
+// ProductType → 友好名称，覆盖 iPhone/iPad/Watch/Vision/TV/HomePod/iPod
+// 查不到时回退到原始 ProductType
 const PRODUCT_TYPE = {
   // iPhone
   'iPhone1,1':'iPhone','iPhone1,2':'iPhone 3G','iPhone2,1':'iPhone 3GS',
@@ -175,8 +84,9 @@ const PRODUCT_TYPE = {
   'AudioAccessory1,1':'HomePod','AudioAccessory1,2':'HomePod','AudioAccessory5,1':'HomePod mini','AudioAccessory6,1':'HomePod 2',
   // iPod
   'iPod1,1':'iPod touch','iPod2,1':'iPod touch 2','iPod3,1':'iPod touch 3','iPod4,1':'iPod touch 4','iPod5,1':'iPod touch 5','iPod7,1':'iPod touch 6','iPod9,1':'iPod touch 7',
-}
+};
 
+// HardwarePlatform → SoC 商业名称
 const SOC_NAME = {
   's5l8900x':'S5L8900','s5l8920x':'S5L8920','s5l8922x':'S5L8922',
   's5l8930x':'S5L8930','s5l8940x':'S5L8940','s5l8942x':'S5L8942',
@@ -198,7 +108,9 @@ const SOC_NAME = {
   't8002':'S1','t8003':'S1P','t8004':'S2','t8006':'S3','t8007':'S3',
   't8009':'S4','t8010s':'S6','t8014':'S7','t8016':'S8','t8018':'S9',
   't6512':'R1',
-}
+};
+
+// Formatters
 
 function fmtDatetime(ts, tzOffsetMinutes) {
   const d = new Date((ts + (tzOffsetMinutes || 0) * 60) * 1000);
@@ -239,6 +151,10 @@ function fmtSeconds(s) {
   return `${Math.floor(h / 24)}天 ${h % 24}时`;
 }
 
+// ─── App Name Mapping ───────────────────────────────────────────────────────
+
+// 从 bundle ID 推断显示名，不写死映射表
+// 规则：取最后一段，如果太短（≤2字符）则取倒数第二段
 function shortName(bundleId) {
   if (!bundleId) return '未知';
   // 系统守护进程：原样返回（如 searchd, thermalmonitord）
@@ -260,12 +176,16 @@ function shortName(bundleId) {
   return name.length > 20 ? name.slice(0, 20) : name;
 }
 
+// ─── Language Detection ─────────────────────────────────────────────────────
+
 function detectLanguage(data, tzOffsetMinutes) {
   // 语言检测：纯数据驱动，从时区推断，不写死 App 列表
   // UTC+5 ~ UTC+9 覆盖中国/日本/韩国/东南亚等中文用户密集区
   if (tzOffsetMinutes >= 300 && tzOffsetMinutes <= 540) return 'zh';
   return 'en';
 }
+
+// ─── Health Color ───────────────────────────────────────────────────────────
 
 function healthColor(pct) {
   if (pct == null) return '#636366';
@@ -282,6 +202,8 @@ function rangeLabel(minTs, maxTs, tzMin, isCn) {
   const end = fmtDatetime(maxTs, tzMin).split(' ')[0];
   return `${start}~${end}`;
 }
+
+// ─── SVG Chart ──────────────────────────────────────────────────────────────
 
 function interactiveChartSvg(points, valueKey, opts = {}) {
   const { width = 1000, height = 200, color = '#34c759', unit = '%',
@@ -364,6 +286,9 @@ ${warnSvg}${hover}
 </g></svg>`;
 }
 
+// ─── Donut Chart ────────────────────────────────────────────────────────────
+
+// Apple 风格水平条形图（替换饼图）
 function barChartSvg(items, opts = {}) {
   const { labelKey = 'label', valueKey = 'value' } = opts;
   const total = items.reduce((s, i) => s + (i[valueKey] || 0), 0);
@@ -381,6 +306,222 @@ function barChartSvg(items, opts = {}) {
   }).join('');
   return `<div style="padding:4px 0">${rows}</div>`;
 }
+
+// ─── CSS ────────────────────────────────────────────────────────────────────
+
+const CSS = `\
+:root{--bg:#000;--card:#1c1c1e;--border:#2c2c2e;--green:#34c759;--yellow:#ff9f0a;--red:#ff3b30;--orange:#ff6723;--blue:#0a84ff;--text:#f5f5f7;--sec:#98989d;--ter:#636366}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+.hero{padding:48px 24px 28px;text-align:center;background:linear-gradient(180deg,#0a0a1a 0%,var(--bg) 100%)}
+.hero h1{font-size:2em;font-weight:700;letter-spacing:-.02em}
+.hero .sub{color:var(--sec);font-size:.88em;margin-top:6px}
+.hero .meta{color:var(--ter);font-size:.8em;margin-top:10px;line-height:1.6}
+.device-strip{display:flex;justify-content:center;gap:24px;margin-top:16px;flex-wrap:wrap}
+.device-strip .item{text-align:center}
+.device-strip .val{font-size:.95em;font-weight:600}
+.device-strip .lbl{font-size:.7em;color:var(--sec);text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px 48px}
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 12px;text-align:center}
+.kpi .val{font-size:1.8em;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.kpi .lbl{font-size:.72em;color:var(--sec);text-transform:uppercase;letter-spacing:.5px;margin-top:6px;line-height:1.2}
+.card-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;overflow:hidden;display:flex;flex-direction:column}
+.card.full{grid-column:1/-1}
+.card-title{font-size:.75em;text-transform:uppercase;letter-spacing:.7px;color:var(--sec);margin-bottom:10px;font-weight:600}
+.stat-big{font-size:1.9em;font-weight:700;letter-spacing:-.02em;line-height:1}
+.stat-sub{font-size:.82em;color:var(--sec);margin-top:5px}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;font-size:.88em;border-bottom:1px solid rgba(255,255,255,.03)}
+.stat-row:last-child{border-bottom:none}
+.stat-row .k{color:var(--sec);display:flex;align-items:center;gap:4px}
+.stat-row .v{font-weight:600}
+.bar{height:5px;background:rgba(255,255,255,.05);border-radius:3px;margin:8px 0;overflow:hidden}
+.bar>div{height:100%;border-radius:3px}
+table{width:100%;border-collapse:collapse;font-size:.88em}
+th{text-align:left;font-size:.7em;color:var(--ter);text-transform:uppercase;letter-spacing:.5px;padding:5px 6px;border-bottom:1px solid var(--border);font-weight:600}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--sec)}
+th.sortable::after{content:' ⇅';opacity:.3;font-size:.8em}
+th.sortable.asc::after{content:' ↑';opacity:.8}
+th.sortable.desc::after{content:' ↓';opacity:.8}
+.stat-help{font-size:.75em;color:var(--ter);margin-top:4px;line-height:1.4}
+.mini-bar{display:inline-block;height:4px;border-radius:2px;vertical-align:middle;margin-left:6px}
+.bat-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05)}
+.bat-stat{text-align:center}
+.bat-stat-val{font-size:1.1em;font-weight:700}
+.bat-stat-lbl{font-size:.68em;color:var(--ter);margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
+.period-btns{display:flex;gap:4px;margin-bottom:8px}
+.period-btn{background:var(--border);border:none;color:var(--sec);font-size:.72em;padding:4px 12px;border-radius:8px;cursor:pointer;font-weight:600;letter-spacing:.3px;transition:background .15s,color .15s}
+.period-btn:hover{color:var(--text)}
+.period-btn.active{background:var(--green);color:#000}
+.crash-toggle{cursor:pointer;color:var(--blue);font-size:.95em;font-style:normal;margin:0 8px;border:1.5px solid var(--blue);opacity:.7;transition:opacity .15s;padding:1px 5px;border-radius:6px;vertical-align:middle}
+.crash-toggle:hover{opacity:1;background:rgba(10,132,255,.1)}
+.crash-apps{padding:4px 0 4px 16px;border-left:2px solid var(--border);margin:0 0 4px 4px;font-size:.85em}
+body.debug .stat-row,body.debug .kpi,body.debug .bat-stat{cursor:help;outline:1px dashed transparent;transition:outline-color .15s}
+body.debug .stat-row:hover,body.debug .kpi:hover,body.debug .bat-stat:hover{outline-color:rgba(10,132,255,.4)}
+body.debug #debug-badge{background:var(--blue);color:#000;border-color:var(--blue)}
+td{padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.02)}
+tr:last-child td{border-bottom:none}
+.tip{cursor:help;color:var(--ter);font-size:.82em;margin-left:3px;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--ter);font-style:normal;font-weight:600;line-height:1}
+.tip-popup{position:fixed;background:#2c2c2e;color:var(--text);padding:10px 14px;border-radius:10px;font-size:.82em;line-height:1.5;max-width:260px;z-index:1000;border:1px solid #48484a;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none}
+.chart-svg{cursor:crosshair;display:block}
+.chart-svg .axis-label{font-size:12px;fill:#636366;font-family:-apple-system,sans-serif}
+.chart-svg .grid-line{stroke:#2c2c2e;stroke-width:.5}
+.chart-svg .hover-point{cursor:pointer}
+.chart-tooltip rect{filter:drop-shadow(0 2px 8px rgba(0,0,0,.4))}
+.chart-empty{height:100px;display:flex;align-items:center;justify-content:center;color:var(--ter);font-size:.88em}
+.footer{text-align:center;padding:32px 0;color:var(--ter);font-size:.78em;border-top:1px solid var(--border);margin-top:24px}
+@media(max-width:768px){.card-grid{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(3,1fr)}.device-strip{gap:12px}.hero{padding:32px 16px 20px}.hero h1{font-size:1.5em}.kpi .val{font-size:1.3em}.stat-big{font-size:1.5em}}
+@media(max-width:480px){.kpi-row{grid-template-columns:repeat(2,1fr)}.device-strip{gap:8px}}`;
+
+// ─── JS ─────────────────────────────────────────────────────────────────────
+
+const CHART_JS = `(function(){
+// Initialize _trendData from data attributes (innerHTML scripts don't execute)
+var batWrap=document.getElementById('bat-chart-wrap');if(batWrap){var tz=parseInt(batWrap.getAttribute('data-trend-tz')||'0',10);var dataStr=batWrap.getAttribute('data-trend-data');if(dataStr){try{window._trendData={id:'bat',tz:tz,data:JSON.parse(dataStr)};}catch(e){console.error('Failed to parse trend data:',e)}}}
+var _popup=null;
+function showTip(el,text){if(!_popup){_popup=document.createElement('div');_popup.className='tip-popup';document.body.appendChild(_popup)}_popup.textContent=text;_popup.style.display='block';var r=el.getBoundingClientRect();_popup.style.left=Math.max(8,Math.min(window.innerWidth-280,r.left+r.width/2-130))+'px';_popup.style.top=(r.top-8)+'px';_popup.style.transform='translateY(-100%)'}
+function hideTip(){if(_popup)_popup.style.display='none'}
+document.querySelectorAll('.tip').forEach(function(el){var text=el.getAttribute('data-tip');el.addEventListener('mouseenter',function(){showTip(el,text)});el.addEventListener('mouseleave',hideTip);el.addEventListener('touchstart',function(e){e.preventDefault();showTip(el,text);setTimeout(hideTip,3000)},{passive:false})});
+
+// Table sorting
+document.querySelectorAll('th.sortable').forEach(function(th){
+th.addEventListener('click',function(){
+var table=th.closest('table'),tbody=table.querySelector('tbody');
+var rows=Array.from(tbody.querySelectorAll('tr'));
+var idx=Array.from(th.parentNode.children).indexOf(th);
+var isNum=th.dataset.type==='num';
+var asc=th.classList.contains('asc');
+table.querySelectorAll('th').forEach(function(h){h.classList.remove('asc','desc')});
+th.classList.add(asc?'desc':'asc');
+rows.sort(function(a,b){
+var va=a.children[idx]?.textContent?.trim()||'';
+var vb=b.children[idx]?.textContent?.trim()||'';
+if(isNum){va=parseFloat(va.replace(/[^\\d.]/g,''))||0;vb=parseFloat(vb.replace(/[^\\d.]/g,''))||0}
+return asc?(va>vb?-1:va<vb?1:0):(va<vb?-1:va>vb?1:0)});
+rows.forEach(function(r){tbody.appendChild(r)})})});
+function initChart(svg){var cid=svg.id,tt=document.getElementById('tt_'+cid),tl=document.getElementById('ttl_'+cid),tb=document.getElementById('ttb_'+cid),tv=document.getElementById('ttv_'+cid),tt2=document.getElementById('ttt_'+cid);if(!tt)return;var pts=svg.querySelectorAll('.hover-point');
+function handleMove(mx){var r=svg.getBoundingClientRect(),sw=svg.viewBox.baseVal.width;var cl=null,md=1e9;pts.forEach(function(p){var cx=parseFloat(p.getAttribute('cx')),d=Math.abs(cx-mx);if(d<md){md=d;cl=p}});if(cl&&md<80){var cx=parseFloat(cl.getAttribute('cx')),cy=parseFloat(cl.getAttribute('cy')),v=cl.getAttribute('data-val'),t=cl.getAttribute('data-time'),u=cl.getAttribute('data-unit');tt.setAttribute('visibility','visible');tl.setAttribute('x1',cx);tl.setAttribute('x2',cx);var bx=cx-70;if(bx<5)bx=5;if(bx>sw-150)bx=sw-150;var flip=cy<60;var by=flip?cy+12:cy-50;tb.setAttribute('x',bx);tb.setAttribute('y',by);tv.setAttribute('x',bx+70);tv.setAttribute('y',by+22);tv.textContent=v+u;tt2.setAttribute('x',bx+70);tt2.setAttribute('y',by+37);tt2.textContent=t}else{tt.setAttribute('visibility','hidden')}}
+svg.addEventListener('mousemove',function(e){var r=svg.getBoundingClientRect(),sw=svg.viewBox.baseVal.width;handleMove((e.clientX-r.left)*sw/r.width)});
+svg.addEventListener('mouseleave',function(){tt.setAttribute('visibility','hidden')});
+svg.addEventListener('touchmove',function(e){e.preventDefault();var touch=e.touches[0];var r=svg.getBoundingClientRect(),sw=svg.viewBox.baseVal.width;handleMove((touch.clientX-r.left)*sw/r.width)},{passive:false});
+svg.addEventListener('touchend',function(){setTimeout(function(){tt.setAttribute('visibility','hidden')},1500)})}
+document.querySelectorAll('.chart-svg').forEach(initChart);
+window._initChart=initChart;
+})();
+
+// Crash toggle
+window.toggleCrash=function(el){var id=el.getAttribute('data-target');var el2=document.getElementById(id);if(!el2)return;var vis=el2.style.display!=='none';el2.style.display=vis?'none':'block';el.textContent=vis?'▸':'▾'};
+
+// Preview/Debug mode
+window._debugMode=false;
+window._debugDiag=null; // set by handleFile after extract
+window.toggleDebug=function(){
+  window._debugMode=!window._debugMode;
+  document.body.classList.toggle('debug',window._debugMode);
+  document.getElementById('debug-badge').textContent=window._debugMode?'Debug':'Preview';
+  document.getElementById('debug-badge').classList.toggle('active',window._debugMode);
+  // Toggle debug panel
+  var panel=document.getElementById('debug-panel');
+  if(window._debugMode){
+    if(!panel){
+      panel=document.createElement('div');
+      panel.id='debug-panel';
+      panel.style.cssText='position:fixed;top:44px;left:12px;z-index:99;background:#1c1c1e;border:1px solid #48484a;color:#f5f5f7;padding:14px 18px;border-radius:12px;font-size:.78em;max-width:420px;max-height:70vh;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5);line-height:1.7';
+      document.body.appendChild(panel);
+    }
+    var html='<div style="font-weight:700;margin-bottom:8px;color:#0a84ff">🔍 Debug 诊断</div>';
+    // Module status
+    var modules=[
+      ['设备信息',window._debugDiag?.device],
+      ['NAND闪存',window._debugDiag?.nand],
+      ['崩溃日志',window._debugDiag?.crashes],
+      ['PowerLog',window._debugDiag?.powerlog],
+      ['电池',window._debugDiag?.battery],
+      ['App数据',window._debugDiag?.apps]
+    ];
+    html+='<div style="margin-bottom:10px">';
+    for(var i=0;i<modules.length;i++){
+      var m=modules[i],status=m[1]||'?';
+      var color=status.indexOf('OK')>=0||status.indexOf('%')>=0?'#34c759':status.indexOf('NOT')>=0||status.indexOf('empty')>=0?'#ff3b30':status.indexOf('ERROR')>=0?'#ff9f0a':'#8e8e93';
+      html+='<div><span style="color:'+color+'">●</span> <b>'+m[0]+':</b> '+status+'</div>';
+    }
+    html+='</div>';
+    // Raw diag log
+    if(window._debugDiag?.raw&&window._debugDiag.raw.length){
+      html+='<div style="border-top:1px solid #3a3a3c;padding-top:8px;margin-top:4px">';
+      html+='<div style="color:#8e8e93;margin-bottom:4px">原始日志:</div>';
+      for(var j=0;j<window._debugDiag.raw.length;j++){
+        html+='<div style="color:#636366;font-size:.92em">• '+window._debugDiag.raw[j]+'</div>';
+      }
+      html+='</div>';
+    }
+    // Tip
+    html+='<div style="border-top:1px solid #3a3a3c;padding-top:8px;margin-top:8px;color:#636366;font-size:.9em">点击任意数据行查看数据来源</div>';
+    panel.innerHTML=html;
+    panel.style.display='block';
+  }else if(panel){
+    panel.style.display='none';
+  }
+};
+// In debug mode, clicking any data row shows source info (dismiss on click outside)
+document.addEventListener('click',function(e){
+  if(!window._debugMode)return;
+  var popup=document.getElementById('debug-popup');
+  // Click outside popup dismisses it
+  if(popup&&popup.style.display==='block'&&!e.target.closest('#debug-popup')&&!e.target.closest('.stat-row,.kpi,.bat-stat,.donut-seg')){
+    popup.style.display='none';return;
+  }
+  var row=e.target.closest('.stat-row,.kpi,.bat-stat,.donut-seg');
+  if(!row)return;
+  var info=row.getAttribute('data-source');
+  if(!info){var label=row.querySelector('.k')?.textContent||row.querySelector('.bat-stat-lbl')?.textContent||'';info='Source: PowerLog / ASP SMART\\nField: '+label}
+  if(!popup){
+    popup=document.createElement('div');
+    popup.id='debug-popup';
+    popup.style.cssText='position:fixed;background:#1c1c1e;border:1px solid #48484a;color:#f5f5f7;padding:10px 14px;border-radius:10px;font-size:.78em;z-index:9999;max-width:320px;white-space:pre-line;box-shadow:0 8px 24px rgba(0,0,0,.5);cursor:pointer';
+    popup.title='点击关闭';
+    document.body.appendChild(popup);
+  }
+  popup.textContent=info;
+  popup.style.display='block';
+  var r=row.getBoundingClientRect();
+  popup.style.left=Math.max(8,Math.min(window.innerWidth-340,r.left))+'px';
+  popup.style.top=(r.bottom+6)+'px';
+},{capture:true});
+
+// Period switching
+window.switchPeriod=function(chartId,days,btn){
+var td=window._trendData;if(!td||td.id!==chartId)return;
+var wrap=document.getElementById(chartId+'-chart-wrap');if(!wrap)return;
+var pts=td.data;
+if(days!=='all'){var cutoff=pts[pts.length-1].t-days*86400;pts=pts.filter(function(p){return p.t>=cutoff})}
+if(pts.length<2)return;
+// Update active button
+btn.parentNode.querySelectorAll('.period-btn').forEach(function(b){b.classList.remove('active')});btn.classList.add('active');
+// Rebuild bands
+var bands=[],bs=null;
+for(var i=0;i<pts.length;i++){if(pts[i].s&&!bs)bs=pts[i].t;if(!pts[i].s&&bs){bands.push({start:bs,end:pts[i].t});bs=null}}
+if(bs)bands.push({start:bs,end:pts[pts.length-1].t});
+// Render SVG client-side
+var W=1000,H=200,pl=52,pr=20,pt=16,pb=42,cw=W-pl-pr,ch=H-pt-pb;
+var t0=pts[0].t,t1=pts[pts.length-1].t,tr=t1-t0||1;
+var vals=pts.map(function(p){return p.l||0}),maxV=100;
+var tx=function(t){return pl+(t-t0)/tr*cw},ty=function(v){return pt+ch-v/maxV*ch};
+var path=pts.map(function(p,i){return(i?'L':'M')+tx(p.t).toFixed(1)+','+ty(p.l||0).toFixed(1)}).join(' ');
+var fill=path+' L'+tx(t1).toFixed(1)+','+(pt+ch)+' L'+tx(t0).toFixed(1)+','+(pt+ch)+' Z';
+var bandsS=bands.map(function(b){var x1=Math.max(pl,tx(b.start)),x2=Math.min(pl+cw,tx(b.end));return x2>x1+1?'<rect x="'+x1.toFixed(1)+'" y="'+pt+'" width="'+(x2-x1).toFixed(1)+'" height="'+ch+'" fill="#34c759" opacity="0.06"/>':''}).join('');
+var timeS='';for(var i=0;i<7;i++){var f=i/6,x=pl+f*cw,ts=t0+f*tr;var d=new Date((ts+td.tz*60)*1000);var lbl=(d.getUTCMonth()+1)+'/'+String(d.getUTCDate()).padStart(2,'0')+' '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');timeS+='<text x="'+x.toFixed(0)+'" y="'+(pt+ch+18)+'" text-anchor="middle" class="axis-label">'+lbl+'</text><line x1="'+x.toFixed(0)+'" y1="'+pt+'" x2="'+x.toFixed(0)+'" y2="'+(pt+ch)+'" class="grid-line"/>'}
+var yS='';for(var i=0;i<5;i++){var val=i/4*maxV,y=ty(val);yS+='<text x="'+(pl-8)+'" y="'+(y+4)+'" text-anchor="end" class="axis-label">'+val.toFixed(0)+'%</text>'+(i>0?'<line x1="'+pl+'" y1="'+y.toFixed(1)+'" x2="'+(pl+cw)+'" y2="'+y.toFixed(1)+'" class="grid-line"/>':'')}
+var wy=ty(20);var warn='<line x1="'+pl+'" y1="'+wy.toFixed(1)+'" x2="'+(pl+cw)+'" y2="'+wy.toFixed(1)+'" stroke="#ff3b30" stroke-width="1" stroke-dasharray="6,3" opacity=".5"/><text x="'+(pl+cw-4)+'" y="'+(wy-6)+'" fill="#ff3b30" font-size="11" text-anchor="end" font-weight="600">20%</text>';
+var hover=pts.map(function(p){var x=tx(p.t),y=ty(p.l||0);var v=(p.l||0).toFixed(1);var dd=new Date((p.t+td.tz*60)*1000);var ts=dd.getUTCFullYear()+'-'+String(dd.getUTCMonth()+1).padStart(2,'0')+'-'+String(dd.getUTCDate()).padStart(2,'0')+' '+String(dd.getUTCHours()).padStart(2,'0')+':'+String(dd.getUTCMinutes()).padStart(2,'0')+':'+String(dd.getUTCSeconds()).padStart(2,'0');return'<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="8" fill="transparent" class="hover-point" data-val="'+v+'" data-time="'+ts+'" data-unit="%"/>'}).join('');
+var svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:'+H+'px" xmlns="http://www.w3.org/2000/svg" class="chart-svg" id="'+chartId+'"><defs><linearGradient id="g_'+chartId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#34c759" stop-opacity=".12"/><stop offset="100%" stop-color="#34c759" stop-opacity="0"/></linearGradient></defs>'+bandsS+timeS+yS+'<line x1="'+pl+'" y1="'+pt+'" x2="'+pl+'" y2="'+(pt+ch)+'" stroke="#3a3a3c" stroke-width="1"/><line x1="'+pl+'" y1="'+(pt+ch)+'" x2="'+(pl+cw)+'" y2="'+(pt+ch)+'" stroke="#3a3a3c" stroke-width="1"/><path d="'+fill+'" fill="url(#g_'+chartId+')"/><path d="'+path+'" fill="none" stroke="#34c759" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'+warn+hover+'<g id="tt_'+chartId+'" class="chart-tooltip" visibility="hidden" pointer-events="none"><line id="ttl_'+chartId+'" x1="0" y1="'+pt+'" x2="0" y2="'+(pt+ch)+'" stroke="#8e8e93" stroke-width="1" stroke-dasharray="3"/><rect id="ttb_'+chartId+'" x="0" y="0" width="140" height="40" rx="10" fill="#2c2c2e" stroke="#48484a"/><text id="ttv_'+chartId+'" x="0" y="0" fill="#fff" font-size="15" font-weight="700" text-anchor="middle"></text><text id="ttt_'+chartId+'" x="0" y="0" fill="#8e8e93" font-size="11" text-anchor="middle"></text></g></svg>';
+wrap.innerHTML=svg;
+window._initChart(wrap.querySelector('.chart-svg'));
+};`;
+
+// ─── Report Generator ───────────────────────────────────────────────────────
 
 function generateReport(data) {
   const battery = data.battery || {};
@@ -731,112 +872,35 @@ ${writerDonut || `<div class="stat-sub">${na}</div>`}</div>
 </div>
 <div class="footer">${deviceClass} Sysdiagnose Analyzer v${VERSION}<br>${isCn ? '生成时间' : 'Generated'}: ${generatedAt} (${tzLabel})<br><a href="https://github.com/l2015/ios-sysdiagnose-dashboard-skill" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none">github.com/l2015/ios-sysdiagnose-dashboard-skill</a></div>
 </div>
-<scr'+'ipt>${CHART_JS}</scr'+'ipt>
+<script>${CHART_JS}</script>
 </body></html>`;
 }
 
-var CHART_JS_DATA = "(function(){\r\n// Initialize _trendData from data attributes (innerHTML scripts don't execute)\r\nvar batWrap=document.getElementById('bat-chart-wrap');if(batWrap){var tz=parseInt(batWrap.getAttribute('data-trend-tz')||'0',10);var dataStr=batWrap.getAttribute('data-trend-data');if(dataStr){try{window._trendData={id:'bat',tz:tz,data:JSON.parse(dataStr)};}catch(e){console.error('Failed to parse trend data:',e)}}}\r\nvar _popup=null;\r\nfunction showTip(el,text){if(!_popup){_popup=document.createElement('div');_popup.className='tip-popup';document.body.appendChild(_popup)}_popup.textContent=text;_popup.style.display='block';var r=el.getBoundingClientRect();_popup.style.left=Math.max(8,Math.min(window.innerWidth-280,r.left+r.width/2-130))+'px';_popup.style.top=(r.top-8)+'px';_popup.style.transform='translateY(-100%)'}\r\nfunction hideTip(){if(_popup)_popup.style.display='none'}\r\ndocument.querySelectorAll('.tip').forEach(function(el){var text=el.getAttribute('data-tip');el.addEventListener('mouseenter',function(){showTip(el,text)});el.addEventListener('mouseleave',hideTip);el.addEventListener('touchstart',function(e){e.preventDefault();showTip(el,text);setTimeout(hideTip,3000)},{passive:false})});\r\n\r\n// Table sorting\r\ndocument.querySelectorAll('th.sortable').forEach(function(th){\r\nth.addEventListener('click',function(){\r\nvar table=th.closest('table'),tbody=table.querySelector('tbody');\r\nvar rows=Array.from(tbody.querySelectorAll('tr'));\r\nvar idx=Array.from(th.parentNode.children).indexOf(th);\r\nvar isNum=th.dataset.type==='num';\r\nvar asc=th.classList.contains('asc');\r\ntable.querySelectorAll('th').forEach(function(h){h.classList.remove('asc','desc')});\r\nth.classList.add(asc?'desc':'asc');\r\nrows.sort(function(a,b){\r\nvar va=a.children[idx]?.textContent?.trim()||'';\r\nvar vb=b.children[idx]?.textContent?.trim()||'';\r\nif(isNum){va=parseFloat(va.replace(/[^\\\\d.]/g,''))||0;vb=parseFloat(vb.replace(/[^\\\\d.]/g,''))||0}\r\nreturn asc?(va>vb?-1:va<vb?1:0):(va<vb?-1:va>vb?1:0)});\r\nrows.forEach(function(r){tbody.appendChild(r)})})});\r\nfunction initChart(svg){var cid=svg.id,tt=document.getElementById('tt_'+cid),tl=document.getElementById('ttl_'+cid),tb=document.getElementById('ttb_'+cid),tv=document.getElementById('ttv_'+cid),tt2=document.getElementById('ttt_'+cid);if(!tt)return;var pts=svg.querySelectorAll('.hover-point');\r\nfunction handleMove(mx){var r=svg.getBoundingClientRect(),sw=svg.viewBox.baseVal.width;var cl=null,md=1e9;pts.forEach(function(p){var cx=parseFloat(p.getAttribute('cx')),d=Math.abs(cx-mx);if(d<md){md=d;cl=p}});if(cl&&md<80){var cx=parseFloat(cl.getAttribute('cx')),cy=parseFloat(cl.getAttribute('cy')),v=cl.getAttribute('data-val'),t=cl.getAttribute('data-time'),u=cl.getAttribute('data-unit');tt.setAttribute('visibility','visible');tl.setAttribute('x1',cx);tl.setAttribute('x2',cx);var bx=cx-70;if(bx<5)bx=5;if(bx>sw-150)bx=sw-150;var flip=cy<60;var by=flip?cy+12:cy-50;tb.setAttribute('x',bx);tb.setAttribute('y',by);tv.setAttribute('x',bx+70);tv.setAttribute('y',by+22);tv.textContent=v+u;tt2.setAttribute('x',bx+70);tt2.setAttribute('y',by+37);tt2.textContent=t}else{tt.setAttribute('visibility','hidden')}}\r\nsvg.addEventListener('mousemove',function(e){var r=svg.getBoundingClientRect(),sw=svg.viewBox.baseVal.width;handleMove((e.clientX-r.left)*sw/r.width)});\r\nsvg.addEventListener('mouseleave',function(){tt.setAttribute('visibility','hidden')});\r\nsvg.addEventListener('touchmove',function(e){e.preventDefault();var touch=e.touches[0];var r=svg.getBoundingClientRect(),sw=svg.viewBox.baseVal.width;handleMove((touch.clientX-r.left)*sw/r.width)},{passive:false});\r\nsvg.addEventListener('touchend',function(){setTimeout(function(){tt.setAttribute('visibility','hidden')},1500)})}\r\ndocument.querySelectorAll('.chart-svg').forEach(initChart);\r\nwindow._initChart=initChart;\r\n})();\r\n\r\n// Crash toggle\r\nwindow.toggleCrash=function(el){var id=el.getAttribute('data-target');var el2=document.getElementById(id);if(!el2)return;var vis=el2.style.display!=='none';el2.style.display=vis?'none':'block';el.textContent=vis?'▸':'▾'};\r\n\r\n// Preview/Debug mode\r\nwindow._debugMode=false;\r\nwindow._debugDiag=null; // set by handleFile after extract\r\nwindow.toggleDebug=function(){\r\n  window._debugMode=!window._debugMode;\r\n  document.body.classList.toggle('debug',window._debugMode);\r\n  document.getElementById('debug-badge').textContent=window._debugMode?'Debug':'Preview';\r\n  document.getElementById('debug-badge').classList.toggle('active',window._debugMode);\r\n  // Toggle debug panel\r\n  var panel=document.getElementById('debug-panel');\r\n  if(window._debugMode){\r\n    if(!panel){\r\n      panel=document.createElement('div');\r\n      panel.id='debug-panel';\r\n      panel.style.cssText='position:fixed;top:44px;left:12px;z-index:99;background:#1c1c1e;border:1px solid #48484a;color:#f5f5f7;padding:14px 18px;border-radius:12px;font-size:.78em;max-width:420px;max-height:70vh;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5);line-height:1.7';\r\n      document.body.appendChild(panel);\r\n    }\r\n    var html='<div style=\"font-weight:700;margin-bottom:8px;color:#0a84ff\">🔍 Debug 诊断</div>';\r\n    // Module status\r\n    var modules=[\r\n      ['设备信息',window._debugDiag?.device],\r\n      ['NAND闪存',window._debugDiag?.nand],\r\n      ['崩溃日志',window._debugDiag?.crashes],\r\n      ['PowerLog',window._debugDiag?.powerlog],\r\n      ['电池',window._debugDiag?.battery],\r\n      ['App数据',window._debugDiag?.apps]\r\n    ];\r\n    html+='<div style=\"margin-bottom:10px\">';\r\n    for(var i=0;i<modules.length;i++){\r\n      var m=modules[i],status=m[1]||'?';\r\n      var color=status.indexOf('OK')>=0||status.indexOf('%')>=0?'#34c759':status.indexOf('NOT')>=0||status.indexOf('empty')>=0?'#ff3b30':status.indexOf('ERROR')>=0?'#ff9f0a':'#8e8e93';\r\n      html+='<div><span style=\"color:'+color+'\">●</span> <b>'+m[0]+':</b> '+status+'</div>';\r\n    }\r\n    html+='</div>';\r\n    // Raw diag log\r\n    if(window._debugDiag?.raw&&window._debugDiag.raw.length){\r\n      html+='<div style=\"border-top:1px solid #3a3a3c;padding-top:8px;margin-top:4px\">';\r\n      html+='<div style=\"color:#8e8e93;margin-bottom:4px\">原始日志:</div>';\r\n      for(var j=0;j<window._debugDiag.raw.length;j++){\r\n        html+='<div style=\"color:#636366;font-size:.92em\">• '+window._debugDiag.raw[j]+'</div>';\r\n      }\r\n      html+='</div>';\r\n    }\r\n    // Tip\r\n    html+='<div style=\"border-top:1px solid #3a3a3c;padding-top:8px;margin-top:8px;color:#636366;font-size:.9em\">点击任意数据行查看数据来源</div>';\r\n    panel.innerHTML=html;\r\n    panel.style.display='block';\r\n  }else if(panel){\r\n    panel.style.display='none';\r\n  }\r\n};\r\n// In debug mode, clicking any data row shows source info (dismiss on click outside)\r\ndocument.addEventListener('click',function(e){\r\n  if(!window._debugMode)return;\r\n  var popup=document.getElementById('debug-popup');\r\n  // Click outside popup dismisses it\r\n  if(popup&&popup.style.display==='block'&&!e.target.closest('#debug-popup')&&!e.target.closest('.stat-row,.kpi,.bat-stat,.donut-seg')){\r\n    popup.style.display='none';return;\r\n  }\r\n  var row=e.target.closest('.stat-row,.kpi,.bat-stat,.donut-seg');\r\n  if(!row)return;\r\n  var info=row.getAttribute('data-source');\r\n  if(!info){var label=row.querySelector('.k')?.textContent||row.querySelector('.bat-stat-lbl')?.textContent||'';info='Source: PowerLog / ASP SMART\\\\nField: '+label}\r\n  if(!popup){\r\n    popup=document.createElement('div');\r\n    popup.id='debug-popup';\r\n    popup.style.cssText='position:fixed;background:#1c1c1e;border:1px solid #48484a;color:#f5f5f7;padding:10px 14px;border-radius:10px;font-size:.78em;z-index:9999;max-width:320px;white-space:pre-line;box-shadow:0 8px 24px rgba(0,0,0,.5);cursor:pointer';\r\n    popup.title='点击关闭';\r\n    document.body.appendChild(popup);\r\n  }\r\n  popup.textContent=info;\r\n  popup.style.display='block';\r\n  var r=row.getBoundingClientRect();\r\n  popup.style.left=Math.max(8,Math.min(window.innerWidth-340,r.left))+'px';\r\n  popup.style.top=(r.bottom+6)+'px';\r\n},{capture:true});\r\n\r\n// Period switching\r\nwindow.switchPeriod=function(chartId,days,btn){\r\nvar td=window._trendData;if(!td||td.id!==chartId)return;\r\nvar wrap=document.getElementById(chartId+'-chart-wrap');if(!wrap)return;\r\nvar pts=td.data;\r\nif(days!=='all'){var cutoff=pts[pts.length-1].t-days*86400;pts=pts.filter(function(p){return p.t>=cutoff})}\r\nif(pts.length<2)return;\r\n// Update active button\r\nbtn.parentNode.querySelectorAll('.period-btn').forEach(function(b){b.classList.remove('active')});btn.classList.add('active');\r\n// Rebuild bands\r\nvar bands=[],bs=null;\r\nfor(var i=0;i<pts.length;i++){if(pts[i].s&&!bs)bs=pts[i].t;if(!pts[i].s&&bs){bands.push({start:bs,end:pts[i].t});bs=null}}\r\nif(bs)bands.push({start:bs,end:pts[pts.length-1].t});\r\n// Render SVG client-side\r\nvar W=1000,H=200,pl=52,pr=20,pt=16,pb=42,cw=W-pl-pr,ch=H-pt-pb;\r\nvar t0=pts[0].t,t1=pts[pts.length-1].t,tr=t1-t0||1;\r\nvar vals=pts.map(function(p){return p.l||0}),maxV=100;\r\nvar tx=function(t){return pl+(t-t0)/tr*cw},ty=function(v){return pt+ch-v/maxV*ch};\r\nvar path=pts.map(function(p,i){return(i?'L':'M')+tx(p.t).toFixed(1)+','+ty(p.l||0).toFixed(1)}).join(' ');\r\nvar fill=path+' L'+tx(t1).toFixed(1)+','+(pt+ch)+' L'+tx(t0).toFixed(1)+','+(pt+ch)+' Z';\r\nvar bandsS=bands.map(function(b){var x1=Math.max(pl,tx(b.start)),x2=Math.min(pl+cw,tx(b.end));return x2>x1+1?'<rect x=\"'+x1.toFixed(1)+'\" y=\"'+pt+'\" width=\"'+(x2-x1).toFixed(1)+'\" height=\"'+ch+'\" fill=\"#34c759\" opacity=\"0.06\"/>':''}).join('');\r\nvar timeS='';for(var i=0;i<7;i++){var f=i/6,x=pl+f*cw,ts=t0+f*tr;var d=new Date((ts+td.tz*60)*1000);var lbl=(d.getUTCMonth()+1)+'/'+String(d.getUTCDate()).padStart(2,'0')+' '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');timeS+='<text x=\"'+x.toFixed(0)+'\" y=\"'+(pt+ch+18)+'\" text-anchor=\"middle\" class=\"axis-label\">'+lbl+'</text><line x1=\"'+x.toFixed(0)+'\" y1=\"'+pt+'\" x2=\"'+x.toFixed(0)+'\" y2=\"'+(pt+ch)+'\" class=\"grid-line\"/>'}\r\nvar yS='';for(var i=0;i<5;i++){var val=i/4*maxV,y=ty(val);yS+='<text x=\"'+(pl-8)+'\" y=\"'+(y+4)+'\" text-anchor=\"end\" class=\"axis-label\">'+val.toFixed(0)+'%</text>'+(i>0?'<line x1=\"'+pl+'\" y1=\"'+y.toFixed(1)+'\" x2=\"'+(pl+cw)+'\" y2=\"'+y.toFixed(1)+'\" class=\"grid-line\"/>':'')}\r\nvar wy=ty(20);var warn='<line x1=\"'+pl+'\" y1=\"'+wy.toFixed(1)+'\" x2=\"'+(pl+cw)+'\" y2=\"'+wy.toFixed(1)+'\" stroke=\"#ff3b30\" stroke-width=\"1\" stroke-dasharray=\"6,3\" opacity=\".5\"/><text x=\"'+(pl+cw-4)+'\" y=\"'+(wy-6)+'\" fill=\"#ff3b30\" font-size=\"11\" text-anchor=\"end\" font-weight=\"600\">20%</text>';\r\nvar hover=pts.map(function(p){var x=tx(p.t),y=ty(p.l||0);var v=(p.l||0).toFixed(1);var dd=new Date((p.t+td.tz*60)*1000);var ts=dd.getUTCFullYear()+'-'+String(dd.getUTCMonth()+1).padStart(2,'0')+'-'+String(dd.getUTCDate()).padStart(2,'0')+' '+String(dd.getUTCHours()).padStart(2,'0')+':'+String(dd.getUTCMinutes()).padStart(2,'0')+':'+String(dd.getUTCSeconds()).padStart(2,'0');return'<circle cx=\"'+x.toFixed(1)+'\" cy=\"'+y.toFixed(1)+'\" r=\"8\" fill=\"transparent\" class=\"hover-point\" data-val=\"'+v+'\" data-time=\"'+ts+'\" data-unit=\"%\"/>'}).join('');\r\nvar svg='<svg viewBox=\"0 0 '+W+' '+H+'\" style=\"width:100%;height:'+H+'px\" xmlns=\"http://www.w3.org/2000/svg\" class=\"chart-svg\" id=\"'+chartId+'\"><defs><linearGradient id=\"g_'+chartId+'\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0%\" stop-color=\"#34c759\" stop-opacity=\".12\"/><stop offset=\"100%\" stop-color=\"#34c759\" stop-opacity=\"0\"/></linearGradient></defs>'+bandsS+timeS+yS+'<line x1=\"'+pl+'\" y1=\"'+pt+'\" x2=\"'+pl+'\" y2=\"'+(pt+ch)+'\" stroke=\"#3a3a3c\" stroke-width=\"1\"/><line x1=\"'+pl+'\" y1=\"'+(pt+ch)+'\" x2=\"'+(pl+cw)+'\" y2=\"'+(pt+ch)+'\" stroke=\"#3a3a3c\" stroke-width=\"1\"/><path d=\"'+fill+'\" fill=\"url(#g_'+chartId+')\"/><path d=\"'+path+'\" fill=\"none\" stroke=\"#34c759\" stroke-width=\"2.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/>'+warn+hover+'<g id=\"tt_'+chartId+'\" class=\"chart-tooltip\" visibility=\"hidden\" pointer-events=\"none\"><line id=\"ttl_'+chartId+'\" x1=\"0\" y1=\"'+pt+'\" x2=\"0\" y2=\"'+(pt+ch)+'\" stroke=\"#8e8e93\" stroke-width=\"1\" stroke-dasharray=\"3\"/><rect id=\"ttb_'+chartId+'\" x=\"0\" y=\"0\" width=\"140\" height=\"40\" rx=\"10\" fill=\"#2c2c2e\" stroke=\"#48484a\"/><text id=\"ttv_'+chartId+'\" x=\"0\" y=\"0\" fill=\"#fff\" font-size=\"15\" font-weight=\"700\" text-anchor=\"middle\"></text><text id=\"ttt_'+chartId+'\" x=\"0\" y=\"0\" fill=\"#8e8e93\" font-size=\"11\" text-anchor=\"middle\"></text></g></svg>';\r\nwrap.innerHTML=svg;\r\nwindow._initChart(wrap.querySelector('.chart-svg'));\r\n};";
+// ─── CLI ────────────────────────────────────────────────────────────────────
 
-(function() {
-  "use strict";
-  var dropZone = document.getElementById("dropZone");
-  var fileInput = document.getElementById("fileInput");
-  var browseBtn = document.getElementById("browseBtn");
-  var progressBar = document.getElementById("progressBar");
-  var progressFill = document.getElementById("progressFill");
-  var progressText = document.getElementById("progressText");
-  var reportContainer = document.getElementById("reportContainer");
-  var worker = null;
+if (process.argv[1] && process.argv[1].endsWith('report.mjs')) {
+  const args = process.argv.slice(2);
+  let inputFile = null, outputFile = null;
 
-  browseBtn.addEventListener("click", function() { fileInput.click(); });
-  fileInput.addEventListener("change", function(e) { if (e.target.files[0]) runFile(e.target.files[0]); });
-  dropZone.addEventListener("dragover", function(e) { e.preventDefault(); dropZone.classList.add("drag-over"); });
-  dropZone.addEventListener("dragleave", function() { dropZone.classList.remove("drag-over"); });
-  dropZone.addEventListener("drop", function(e) {
-    e.preventDefault(); dropZone.classList.remove("drag-over");
-    var f = e.dataTransfer.files[0]; if (f) runFile(f);
-  });
-
-  function setProgress(pct, text) {
-    progressBar.style.display = "block";
-    progressFill.style.width = pct + "%";
-    progressText.textContent = text;
-  }
-
-  function killWorker() {
-    if (worker) { try { worker.terminate(); } catch(e) {} worker = null; }
-  }
-
-  async function runFile(file) {
-    killWorker();
-    setProgress(2, "读取文件...");
-    try {
-      var buf = await file.arrayBuffer();
-      setProgress(5, "启动分析引擎...");
-
-      worker = new Worker("worker.js");
-      worker.onmessage = function(e) {
-        var msg = e.data;
-        if (msg.type === "progress") {
-          setProgress(msg.pct, msg.text);
-        } else if (msg.type === "result") {
-          setProgress(99, "渲染报告...");
-          reportContainer.innerHTML = generateReport(msg.data);
-          var s = document.createElement("script");
-          s.textContent = CHART_JS_DATA;
-          document.body.appendChild(s);
-          dropZone.classList.add("hidden");
-          progressBar.style.display = "none";
-          // Debug diagnostics
-          setupDebug(msg.data);
-        } else if (msg.type === "error") {
-          setProgress(0, "\u274C " + msg.message);
-          console.error("[worker]", msg.message);
-          killWorker();
-        }
-      };
-      worker.onerror = function(err) {
-        setProgress(0, "\u274C Worker \u5D29\u6E83: " + (err.message || "\u672A\u77E5\u9519\u8BEF"));
-        killWorker();
-      };
-
-      // Transfer the file buffer to worker (zero-copy)
-      worker.postMessage({ type: "process", buffer: buf }, [buf]);
-    } catch (err) {
-      setProgress(0, "\u274C " + err.message);
-      console.error(err);
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '-o' || args[i] === '--output') outputFile = args[++i];
+    else if (args[i] === '-h' || args[i] === '--help') {
+      console.log('Usage: node report.mjs data.json [-o report.html]');
+      process.exit(0);
     }
+    else if (!inputFile) inputFile = args[i];
   }
 
-  function setupDebug(data) {
-    if (!data._diag) return;
-    var d = data._diag;
-    var find = function(p) {
-      for (var i = 0; i < d.length; i++) if (d[i].indexOf(p) === 0) return d[i].slice(p.length);
-      return "?";
-    };
-    window._debugDiag = {
-      device: find("Device: "),
-      nand: find("NAND: "),
-      crashes: find("Crashes: "),
-      powerlog: find("PowerLog: "),
-      battery: find("Battery: "),
-      apps: find("Apps: "),
-      raw: d
-    };
-    var plFound = d.some(function(s) { return s.indexOf("PowerLog:") === 0 && s.indexOf("NOT FOUND") === -1; });
-    if (!plFound) {
-      var warn = document.createElement("div");
-      warn.style.cssText = "position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#ff9f0a;color:#000;padding:10px 20px;border-radius:12px;font-size:.85em;z-index:200;max-width:90vw;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.4)";
-      warn.textContent = "\u26A0\uFE0F PowerLog \u672A\u627E\u5230\uFF0C\u62A5\u544A\u6570\u636E\u4E0D\u5B8C\u6574\u3002\u70B9\u51FB\u5DE6\u4E0A\u89D2 Debug \u6309\u94AE\u67E5\u770B\u8BCA\u65AD\u3002";
-      document.body.appendChild(warn);
-      setTimeout(function() { warn.style.opacity = "0"; warn.style.transition = "opacity .5s"; setTimeout(function() { warn.remove(); }, 500); }, 8000);
-    }
+  if (!inputFile) {
+    console.error('Error: input JSON file required');
+    console.error('Usage: node report.mjs data.json [-o report.html]');
+    process.exit(1);
   }
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(function() {});
-  }
-})();
-</script>
-</body>
-</html>
+
+  const data = JSON.parse(readFileSync(inputFile, 'utf-8'));
+  const html = generateReport(data);
+  if (outputFile) { writeFileSync(outputFile, html); console.error(`Report written to ${outputFile}`); }
+  else process.stdout.write(html);
+}
+
+export { generateReport };
