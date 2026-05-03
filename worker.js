@@ -410,11 +410,13 @@ StreamingTarParser.prototype._collectData = function() {
       combined.set(c.subarray(0, take), off);
       off += take;
     }
+    // Save dataCollected before freeing chunks — padding calc needs it
+    var collectedNow = this._dataCollected();
     this.vfs.addFile(this.currentName, combined);
     this.currentChunks = []; // Free chunk arrays — they double memory with VFS copy
 
     // Consume padding
-    var paddingLeft = totalBlocks - this._dataCollected();
+    var paddingLeft = totalBlocks - collectedNow;
     if (paddingLeft > 0) {
       this.buf = this.buf.subarray(Math.min(paddingLeft, this.buf.length));
     }
