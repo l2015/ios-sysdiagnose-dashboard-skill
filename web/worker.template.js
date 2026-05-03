@@ -101,6 +101,10 @@ StreamingTarParser.prototype.feed = function(chunk) {
   combined.set(chunk, this.buf.length);
   this.buf = combined;
   this._pump();
+  // Detach from combined ArrayBuffer to allow GC — subarray shares same backing buffer
+  if (this.buf.length > 0) {
+    this.buf = new Uint8Array(this.buf);
+  }
 };
 
 StreamingTarParser.prototype._pump = function() {
