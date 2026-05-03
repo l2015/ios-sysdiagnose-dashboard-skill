@@ -411,6 +411,7 @@ StreamingTarParser.prototype._collectData = function() {
       off += take;
     }
     this.vfs.addFile(this.currentName, combined);
+    this.currentChunks = []; // Free chunk arrays — they double memory with VFS copy
 
     // Consume padding
     var paddingLeft = totalBlocks - this._dataCollected();
