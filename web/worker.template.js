@@ -1,12 +1,11 @@
-﻿// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════
 // Web Worker: iPhone Sysdiagnose Analyzer
 // Handles: gzip → tar parse → SQLite extraction
 // ══════════════════════════════════════════════
 
-// ─── Placeholders (replaced by build.js) ───
-// {{PAKO}}
-// {{SQL_JS}}
-// {{WASM_B64}}
+// ─── Libraries (injected by build.js) ───
+{{PAKO}}
+{{SQL_JS}}
 
 // ─── File Whitelist: only extract these from sysdiagnose ───
 var FILE_PATTERNS = [

@@ -80,13 +80,23 @@ for (const name of helperNames) {
 }
 
 // ═══════════════════════════════════════════════
-//  BUILD worker.js
+//  BUILD worker.js — direct concatenation
 // ═══════════════════════════════════════════════
-let workerJs = workerTpl
-  .replace('{{PAKO}}', pakoJs)
-  .replace('{{SQL_JS}}', sqlJs)
-  .replace('{{WASM_B64}}', sqlWasmB64);
-writeFileSync(join(projectDir, 'worker.js'), workerJs);
+// Normalize line endings to LF to avoid CR/LF mismatch errors
+const lf = (s) => s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+const cleanPako = lf(pakoJs);
+const cleanSql = lf(sqlJs);
+const cleanTpl = lf(workerTpl);
+
+const pakoIdx = cleanTpl.indexOf('{{PAKO}}');
+const sqlIdx = cleanTpl.indexOf('{{SQL_JS}}');
+const header = cleanTpl.substring(0, pakoIdx);
+const workerBody = cleanTpl.substring(sqlIdx + 10); // {{SQL_JS}} is 10 chars
+const workerBodyWithWasm = workerBody.replace('{{WASM_B64}}', sqlWasmB64);
+
+const workerJs = header + cleanPako + ';\n' + cleanSql + ';\n' + workerBodyWithWasm;
+
+writeFileSync(join(projectDir, 'worker.js'), workerJs, 'utf-8');
 console.log('Built: worker.js (' + (workerJs.length / 1024).toFixed(0) + ' KB)');
 
 // ═══════════════════════════════════════════════
@@ -109,7 +119,14 @@ const dropCss =
   '.progress-bar .fill{height:100%;background:var(--green);width:0%;transition:width .3s}\n' +
   '.progress-text{color:var(--sec);font-size:.82em;margin-top:6px}\n';
 
-const head = '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>iPhone Sysdiagnose Analyzer</title>\n<style>\n' + dropCss + css + '\n</style>\n</head>';
+const head = '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n' +
+  '<meta name="theme-color" content="#000000">\n' +
+  '<meta name="apple-mobile-web-app-capable" content="yes">\n' +
+  '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n' +
+  '<meta name="apple-mobile-web-app-title" content="Sysdiagnose">\n' +
+  '<link rel="manifest" href="./manifest.json">\n' +
+  '<link rel="apple-touch-icon" href="./icons/icon-192.png">\n' +
+  '<title>iPhone Sysdiagnose Analyzer</title>\n<style>\n' + dropCss + css + '\n</style>\n</head>';
 
 const body =
   '\n<body>\n' +
@@ -225,6 +242,9 @@ const appScript = '<script>\n' +
   '      document.body.appendChild(warn);\n' +
   '      setTimeout(function() { warn.style.opacity = "0"; warn.style.transition = "opacity .5s"; setTimeout(function() { warn.remove(); }, 500); }, 8000);\n' +
   '    }\n' +
+  '  }\n' +
+  '  if (\'serviceWorker\' in navigator) {\n' +
+  '    navigator.serviceWorker.register(\'sw.js\').catch(function() {});\n' +
   '  }\n' +
   '})();\n' +
   '</script>\n';
