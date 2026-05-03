@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectDir = join(__dirname, '..');
+const appVersion = readFileSync(join(projectDir, 'VERSION'), 'utf-8').trim();
 const nodeMod = join(projectDir, 'scripts', 'node_modules');
 
 // ─── Read sources ───
@@ -117,7 +118,8 @@ const dropCss =
   '.drop-zone-inner .browse{color:var(--blue);cursor:pointer;text-decoration:underline}\n' +
   '.progress-bar{width:300px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:8px}\n' +
   '.progress-bar .fill{height:100%;background:var(--green);width:0%;transition:width .3s}\n' +
-  '.progress-text{color:var(--sec);font-size:.82em;margin-top:6px}\n';
+  '.progress-text{color:var(--sec);font-size:.82em;margin-top:6px}\n' +
+  '.page-footer{text-align:center;padding:12px 0;color:var(--ter);font-size:.7em;line-height:1.5}\n';
 
 const head = '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n' +
   '<meta name="theme-color" content="#000000">\n' +
@@ -138,7 +140,8 @@ const body =
   '    <div class="progress-text" id="progressText"></div>\n' +
   '  </div>\n' +
   '  <input type="file" id="fileInput" accept=".tar.gz,.tgz" style="display:none">\n' +
-  '</div>\n<div id="reportContainer"></div>\n';
+  '</div>\n<div id="reportContainer"></div>\n' +
+  '<div class="page-footer">iPhone Sysdiagnose Analyzer v' + appVersion + '<br>拖入 .tar.gz 文件即可开始分析</div>\n';
 
 const chartJsEscaped = JSON.stringify(chartJs);
 

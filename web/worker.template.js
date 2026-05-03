@@ -713,7 +713,7 @@ function decompressAndParse(compressedBuffer) {
     var inflator = new pako.Inflate();
     var parser = new StreamingTarParser(FILE_PATTERNS);
     var offset = 0;
-    var totalSize = compressedBuffer.length;
+    var totalSize = compressedBuffer.byteLength;
 
     // pako.Inflate uses onData callback for streaming output
     // Override to feed tar parser directly (data NOT stored in inflator.result)
