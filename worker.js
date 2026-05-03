@@ -257,7 +257,8 @@ function StreamingTarParser(patterns) {
   this.state = 'header';
   this.currentName = '';
   this.currentSize = 0;
-  this.currentChunks = [];
+  this.currentData = null;       // single pre-allocated buffer (avoids chunks+combined double memory)
+  this.currentDataOffset = 0;    // bytes written into currentData so far
   this.currentSkipped = 0;       // bytes skipped so far in current skip
   this.currentDataSkipped = 0;    // actual data bytes skipped
   this.currentDataBlocks = 0;     // total blocks (padded) to skip
@@ -378,7 +379,8 @@ StreamingTarParser.prototype._parseHeader = function() {
   // Regular file with data
   this.currentName = finalName;
   this.currentSize = size;
-  this.currentChunks = [];
+  this.currentData = null;       // lazy-allocated in _collectData
+  this.currentDataOffset = 0;
   this.buf = this.buf.subarray(512);
 
   if (keep) {
@@ -394,53 +396,37 @@ StreamingTarParser.prototype._parseHeader = function() {
 };
 
 StreamingTarParser.prototype._collectData = function() {
-  var needed = this.currentSize - this._dataCollected();
-  if (needed <= 0) {
-    // Data complete, pad to block boundary
-    var totalBlocks = Math.ceil(this.currentSize / 512) * 512;
-    var padded = totalBlocks - this.currentSize;
-    // We might have consumed overhanging bytes from buf - those are padding
-    // Save file
-    var totalLen = this._dataCollected();
-    var combined = new Uint8Array(this.currentSize);
-    var off = 0;
-    for (var i = 0; i < this.currentChunks.length; i++) {
-      var c = this.currentChunks[i];
-      var take = Math.min(c.length, this.currentSize - off);
-      combined.set(c.subarray(0, take), off);
-      off += take;
-    }
-    // Save dataCollected before freeing chunks — padding calc needs it
-    var collectedNow = this._dataCollected();
-    this.vfs.addFile(this.currentName, combined);
-    this.currentChunks = []; // Free chunk arrays — they double memory with VFS copy
-
-    // Consume padding
-    var paddingLeft = totalBlocks - collectedNow;
-    if (paddingLeft > 0) {
-      this.buf = this.buf.subarray(Math.min(paddingLeft, this.buf.length));
-    }
-    this.state = 'header';
-    return;
+  // Lazy-allocate: one buffer for the entire file (no chunks array → no 2× memory)
+  if (!this.currentData) {
+    this.currentData = new Uint8Array(this.currentSize);
+    this.currentDataOffset = 0;
   }
 
-  // Collect what we have in buffer (limited by needed data bytes)
+  var needed = this.currentSize - this.currentDataOffset;
+
+  // Collect available data from buffer (capped at needed — never consume padding)
   var avail = Math.min(this.buf.length, needed);
   if (avail > 0) {
-    this.currentChunks.push(new Uint8Array(this.buf.subarray(0, avail)));
+    this.currentData.set(new Uint8Array(this.buf.buffer, this.buf.byteOffset, avail), this.currentDataOffset);
+    this.currentDataOffset += avail;
     this.buf = this.buf.subarray(avail);
   }
-  // If we still need more, return (will get next chunk)
-  if (this._dataCollected() < this.currentSize) return;
 
-  // Data is complete, but may need padding
-  this._collectData(); // recurse to handle completion
-};
+  // Need more data from stream?
+  if (this.currentDataOffset < this.currentSize) return;
 
-StreamingTarParser.prototype._dataCollected = function() {
-  var s = 0;
-  for (var i = 0; i < this.currentChunks.length; i++) s += this.currentChunks[i].length;
-  return s;
+  // All file data collected — save to VFS and free buffer
+  this.vfs.addFile(this.currentName, this.currentData);
+  this.currentData = null;  // GC hint — VFS now owns the copy
+  this.currentDataOffset = 0;
+
+  // Consume tar padding bytes (file data padded to 512-byte boundary)
+  var totalBlocks = Math.ceil(this.currentSize / 512) * 512;
+  var paddingLeft = totalBlocks - this.currentSize;
+  if (paddingLeft > 0) {
+    this.buf = this.buf.subarray(Math.min(paddingLeft, this.buf.length));
+  }
+  this.state = 'header';
 };
 
 StreamingTarParser.prototype._skipData = function() {
