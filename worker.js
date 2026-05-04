@@ -289,6 +289,8 @@ StreamingTarParser.prototype.feed = function(chunk) {
   combined.set(this.buf);
   combined.set(chunk, this.buf.length);
   this.buf = combined;
+  // If we were waiting for more data, resume parsing
+  if (this.state === 'need-more') this.state = 'header';
   this._pump();
   // Detach from combined ArrayBuffer to allow GC — subarray shares same backing buffer
   if (this.buf.length > 0) {
@@ -302,6 +304,9 @@ StreamingTarParser.prototype._pump = function() {
     if (self.state === 'header') {
       if (self.buf.length < 512) return;
       self._parseHeader();
+      // If _parseHeader sets state to 'need-more' or 'done', exit the loop
+      // to prevent infinite re-parsing of the same header
+      if (self.state === 'need-more' || self.state === 'done') return;
     } else if (self.state === 'collect') {
       self._collectData();
       if (self.state === 'collect') return; // need more data
@@ -309,36 +314,36 @@ StreamingTarParser.prototype._pump = function() {
       self._skipData();
       if (self.state === 'skip') return; // need more data
     } else {
-      return;
+      return; // 'done', 'need-more', or unknown
     }
   }
 };
 
 StreamingTarParser.prototype._parseHeader = function() {
   // End of archive?
-  if (this.buf[0] === 0 && this.buf[1] === 0) { this.buf = new Uint8Array(0); return; }
+  if (this.buf[0] === 0 && this.buf[1] === 0) { this.buf = new Uint8Array(0); this.state = 'done'; return; }
 
   // Read name
   var name = '';
   for (var i = 0; i < 100 && this.buf[i] !== 0; i++) name += String.fromCharCode(this.buf[i]);
-  if (!name) { this.buf = new Uint8Array(0); return; }
+  if (!name) { this.buf = new Uint8Array(0); this.state = 'done'; return; }
 
   var typeFlag = String.fromCharCode(this.buf[156]);
   var size = _readTarSize(this.buf);
   var dataBlocks = Math.ceil(size / 512) * 512;
 
-  // GNU long name
+  // GNU long name — need header + data in one shot
   if (typeFlag === 'L') {
-    if (this.buf.length < 512 + dataBlocks) return;
+    if (this.buf.length < 512 + dataBlocks) { this.state = 'need-more'; return; }
     var nameData = this.buf.subarray(512, 512 + size);
     this.longName = new TextDecoder().decode(nameData).replace(/\0/g, '');
     this.buf = this.buf.subarray(512 + dataBlocks);
     return;
   }
 
-  // POSIX extended header
+  // POSIX extended header — need header + data in one shot
   if (typeFlag === 'x' || typeFlag === 'g') {
-    if (this.buf.length < 512 + dataBlocks) return;
+    if (this.buf.length < 512 + dataBlocks) { this.state = 'need-more'; return; }
     var hdrData = new TextDecoder().decode(this.buf.subarray(512, 512 + size));
     var pathMatch = hdrData.match(/\d+ path=(.+)/);
     if (pathMatch) this.longName = pathMatch[1].trim();
@@ -372,7 +377,16 @@ StreamingTarParser.prototype._parseHeader = function() {
 
   // Non-regular file (link, fifo, etc.) or empty file
   if (size === 0 || (typeFlag !== '0' && typeFlag !== '\0' && typeFlag !== ' ' && typeFlag !== '7')) {
-    this.buf = this.buf.subarray(512 + dataBlocks);
+    if (this.buf.length >= 512 + dataBlocks) {
+      this.buf = this.buf.subarray(512 + dataBlocks);
+    } else {
+      // Need to skip data blocks that span beyond current buffer
+      this.state = 'skip';
+      this.currentDataBlocks = dataBlocks;
+      var available = this.buf.length - 512;
+      this.currentSkipped = available > 0 ? available : 0;
+      this.buf = new Uint8Array(0);
+    }
     return;
   }
 
